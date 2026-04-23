@@ -71,7 +71,7 @@
 /* ---------- Supabase ---------- */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = "https://ckpjeewtbmjbjhwehywd.supabase.co";
-const SUPABASE_ANON_KEY = "ckpjeewtbmjbjhwehywd";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcGplZXd0Ym1qYmpod2VoeXdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5Mzg1MzgsImV4cCI6MjA5MjUxNDUzOH0.xB-aWqWgD2T1DLWIhohGZLWs-ZmBl7xpH_tnbbh29NM";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* Keep a reactive auth state so sync helpers can read it */

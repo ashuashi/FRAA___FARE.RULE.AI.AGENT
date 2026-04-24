@@ -107,26 +107,26 @@ const K = { log: NS+".fallback_log", settings: NS+".settings" };
 /* Supabase-backed rule helpers */
 const sbRules = {
   async list() {
-    const { data, error } = await supabase.from("food_factory").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("fare_rules").select("*").order("created_at", { ascending: false });
     if (error) { console.error("Supabase list error:", error); return []; }
     return data || [];
   },
   async insert(rule) {
-    const { data, error } = await supabase.from("food_factory").insert([rule]).select().single();
+    const { data, error } = await supabase.from("fare_rules").insert([rule]).select().single();
     if (error) throw error;
     return data;
   },
   async update(id, patch) {
-    const { data, error } = await supabase.from("food_factory").update({ ...patch, updated_at: nowISO() }).eq("id", id).select().single();
+    const { data, error } = await supabase.from("fare_rules").update({ ...patch, updated_at: nowISO() }).eq("id", id).select().single();
     if (error) throw error;
     return data;
   },
   async remove(id) {
-    const { error } = await supabase.from("food_factory").delete().eq("id", id);
+    const { error } = await supabase.from("fare_rules").delete().eq("id", id);
     if (error) throw error;
   },
   async findByHash(hash) {
-    const { data } = await supabase.from("food_factory").select("*").eq("hash_key", hash).maybeSingle();
+    const { data } = await supabase.from("fare_rules").select("*").eq("hash_key", hash).maybeSingle();
     return data || null;
   },
 };

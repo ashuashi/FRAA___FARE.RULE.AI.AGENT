@@ -117,7 +117,7 @@ const sbRules = {
     return data;
   },
   async update(id, patch) {
-    const { data, error } = await supabase.from("fare_rules").update({ ...patch, updated_at: nowISO() }).eq("id", id).select().single();
+   const { data, error } = await supabase.from("fare_rules").update({ ...patch, updated_at: nowISO() }).eq("id", id).select().single();
     if (error) throw error;
     return data;
   },
@@ -141,11 +141,13 @@ const store = {
   setLog: v => localStorage.setItem(K.log, JSON.stringify(v)),
 
   /* Settings — still localStorage */
-  getSettings: () => Object.assign({
-    endpoint_url:"", api_key:"", model:"", request_field:"prompt",
-    response_field:"output", api_lookup_key:""
-  }, JSON.parse(localStorage.getItem(K.settings) || "{}")),
-  setSettings: v => localStorage.setItem(K.settings, JSON.stringify(v)),
+  getSettings: async () => {
+  const { data } = await supabase.from("settings").select("*").eq("user_id", _currentUser.id).maybeSingle();
+  return data?.config || { endpoint_url:"", api_key:"", model:"", request_field:"prompt", response_field:"output", api_lookup_key:"" };
+},
+setSettings: async (v) => {
+  await supabase.from("settings").upsert({ user_id: _currentUser.id, config: v });
+},
 
   /* Auth — delegated to Supabase */
   getAuth: () => _currentUser ? { email: _currentUser.email } : null,

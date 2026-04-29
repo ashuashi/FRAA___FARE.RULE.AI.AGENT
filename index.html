@@ -1,782 +1,235 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>FRAA — FareRule AI Agent</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FareRule AI Agent — Standardize Once. Serve Everywhere.</title>
+<meta name="description" content="Offline-first fare rule standardization engine for travel platforms. Deterministic, hashed, supplier-aware." />
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script type="module">
-  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-  window.__createSupabase = createClient;
-  window.dispatchEvent(new Event("supabase-lib-ready"));
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.1/dist/umd/supabase.min.js"></script>
 <style>
   :root{
-    --bg:#0b1020; --panel:#11172b; --panel2:#0f1426; --muted:#94a3b8;
-    --text:#e6edf7; --primary:#6366f1; --primary-2:#8b5cf6; --border:#1f2742;
-    --success:#22c55e; --danger:#ef4444; --warning:#f59e0b;
+    --background:#ffffff; --foreground:#020817; --card:#ffffff; --card-foreground:#020817;
+    --primary:#0f172a; --primary-foreground:#f8fafc; --secondary:#f1f5f9; --secondary-foreground:#0f172a;
+    --muted:#f1f5f9; --muted-foreground:#64748b; --accent:#f1f5f9; --accent-foreground:#0f172a;
+    --destructive:#dc2626; --destructive-foreground:#f8fafc; --border:#e2e8f0; --input:#e2e8f0; --ring:#94a3b8;
+    --amber-bg:#fffbeb; --amber-border:#fcd34d; --amber-fg:#b45309; --violet:#7c3aed;
   }
-  html,body{background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif}
-  .glass{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));border:1px solid var(--border);border-radius:14px}
-  .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem .9rem;border-radius:10px;font-weight:500;font-size:.875rem;border:1px solid var(--border);background:#1a2140;color:var(--text);cursor:pointer;transition:.15s}
-  .btn:hover{background:#222a4f}
-  .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-2));border:none}
-  .btn-primary:hover{filter:brightness(1.08)}
-  .btn-danger{background:#3a1418;border-color:#7f1d1d;color:#fecaca}
-  .btn-ghost{background:transparent}
-  .input,.select,.textarea{width:100%;padding:.55rem .75rem;background:#0c1228;border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.875rem;outline:none}
-  .input:focus,.select:focus,.textarea:focus{border-color:var(--primary)}
-  .textarea{min-height:140px;font-family:ui-monospace,Menlo,monospace}
-  .label{font-size:.78rem;color:var(--muted);margin-bottom:.3rem;display:block}
-  .badge{display:inline-flex;align-items:center;gap:.25rem;padding:.15rem .55rem;border-radius:999px;font-size:.7rem;border:1px solid var(--border);background:#0c1228}
-  .badge-green{background:#052e1a;color:#86efac;border-color:#065f46}
-  .badge-blue{background:#0a1f3d;color:#93c5fd;border-color:#1e40af}
-  .badge-amber{background:#2a1d05;color:#fcd34d;border-color:#78350f}
-  table{width:100%;border-collapse:collapse;font-size:.85rem}
-  th,td{text-align:left;padding:.65rem .75rem;border-bottom:1px solid var(--border)}
-  th{color:var(--muted);font-weight:500;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;background:#0c1228}
-  tbody tr:hover{background:#0e1530;cursor:pointer}
-  .nav-link{display:flex;align-items:center;gap:.6rem;padding:.55rem .8rem;border-radius:10px;color:var(--muted);font-size:.88rem;cursor:pointer;transition:.15s}
-  .nav-link:hover{background:#151c36;color:var(--text)}
-  .nav-link.active{background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.18));color:#fff;border:1px solid rgba(99,102,241,.35)}
-  .tab{padding:.5rem .9rem;border-radius:8px;font-size:.85rem;color:var(--muted);cursor:pointer}
-  .tab.active{background:#1a2140;color:#fff}
-  .pre{white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:.8rem;background:#0c1228;border:1px solid var(--border);border-radius:10px;padding:.85rem;color:#cbd5e1}
-  .toast{position:fixed;bottom:20px;right:20px;background:#11172b;border:1px solid var(--border);padding:.75rem 1rem;border-radius:10px;font-size:.85rem;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:9999;animation:slideIn .2s ease}
-  @keyframes slideIn{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
-  .drawer{position:fixed;top:0;right:0;height:100vh;width:min(560px,100%);background:#0c1228;border-left:1px solid var(--border);z-index:50;overflow:auto;animation:slideX .2s ease}
-  @keyframes slideX{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}
-  .backdrop{position:fixed;inset:0;background:rgba(2,6,23,.6);z-index:40}
-  .dz{border:2px dashed var(--border);border-radius:12px;padding:2rem;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
-  .dz:hover,.dz.over{border-color:var(--primary);background:#0e1530;color:var(--text)}
-  ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#1f2742;border-radius:10px}
+  *{box-sizing:border-box;border-color:var(--border)}
+  html{scroll-behavior:smooth} body{margin:0;background:var(--background);color:var(--foreground);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.5}
+  button,input,select,textarea{font:inherit} button{cursor:pointer} button:disabled{cursor:not-allowed;opacity:.6}.hidden{display:none!important}
+  .container{max-width:72rem;margin:0 auto;padding:0 1.5rem}.app-container{max-width:80rem;margin:0 auto;padding:1.5rem}.shadow-sm{box-shadow:0 1px 2px rgba(15,23,42,.05)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:.375rem;font-size:.875rem;font-weight:500;height:2.5rem;padding:0 1rem;border:1px solid transparent;transition:background .15s,color .15s,border-color .15s,opacity .15s;text-decoration:none;white-space:nowrap}.btn-sm{height:2.25rem;padding:0 .75rem}.btn-lg{height:2.75rem;padding:0 2rem}.btn-icon{width:2.25rem;padding:0}.btn-primary{background:var(--primary);color:var(--primary-foreground)}.btn-primary:hover{background:#1e293b}.btn-outline{background:var(--background);border-color:var(--border);color:var(--foreground)}.btn-outline:hover,.btn-ghost:hover{background:var(--accent);color:var(--accent-foreground)}.btn-ghost{background:transparent;color:var(--foreground)}.btn-danger{background:var(--destructive);color:#fff}.btn-link{height:auto;padding:0;background:transparent;color:var(--primary);text-decoration:underline;text-underline-offset:4px}
+  .card{background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:.75rem;box-shadow:0 1px 2px rgba(15,23,42,.04)}.card-header{padding:1.5rem 1.5rem .75rem}.card-content{padding:1.5rem}.card-title{font-size:1.125rem;font-weight:600;line-height:1}.card-desc{font-size:.875rem;color:var(--muted-foreground);margin-top:.45rem}.stat-title{font-size:.875rem;font-weight:500;color:var(--muted-foreground)}
+  .badge{display:inline-flex;align-items:center;border-radius:999px;border:1px solid transparent;padding:.125rem .625rem;font-size:.75rem;font-weight:600;line-height:1.25rem;background:var(--primary);color:var(--primary-foreground);white-space:nowrap}.badge-secondary{background:var(--secondary);color:var(--secondary-foreground)}.badge-outline{border-color:var(--border);background:transparent;color:var(--foreground)}.badge-danger{background:var(--destructive);color:#fff}.badge-amber{background:#fef3c7;color:#92400e}.badge-violet{background:#7c3aed;color:white}.badge-success{background:#dcfce7;color:#166534}
+  .input,.select,.textarea{width:100%;border:1px solid var(--input);border-radius:.5rem;background:var(--background);padding:.55rem .75rem;outline:none;box-shadow:0 1px 2px rgba(15,23,42,.03)}.input,.select{height:2.5rem}.textarea{min-height:7rem;resize:vertical}.input:focus,.select:focus,.textarea:focus{border-color:var(--ring);box-shadow:0 0 0 3px rgba(148,163,184,.22)}.input:disabled,.select:disabled{background:var(--muted);color:var(--muted-foreground)}label{display:block;font-size:.875rem;font-weight:500;margin-bottom:.35rem}.muted{color:var(--muted-foreground)}
+  .site-header{position:sticky;top:0;z-index:40;border-bottom:1px solid var(--border);background:rgba(255,255,255,.8);backdrop-filter:blur(10px)}.site-header-inner{height:auto;min-height:4rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 1.5rem}.brand{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:inherit}.brand-mark{height:2.25rem;width:2.25rem;border-radius:.5rem;background:var(--primary);color:var(--primary-foreground);display:flex;align-items:center;justify-content:center}.plane{width:1.15rem;height:1.15rem}.nav{display:flex;align-items:center;gap:1.5rem;font-size:.875rem}.nav a{color:var(--muted-foreground);text-decoration:none}.nav a:hover{color:var(--foreground)}
+  .hero{position:relative;overflow:hidden}.hero:before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(60rem 30rem at 50% -10%,rgba(15,23,42,.10),transparent 60%)}.hero-inner{padding:5rem 1.5rem 7rem;text-align:center}.h1{font-size:clamp(2.25rem,5vw,3.75rem);line-height:1.02;font-weight:800;letter-spacing:0;max-width:48rem;margin:0 auto}.h2{font-size:clamp(1.875rem,3vw,2.25rem);line-height:1.12;font-weight:800;letter-spacing:0}.section{padding:5rem 0}.section-muted{border-top:1px solid var(--border);background:rgba(241,245,249,.45)}.grid{display:grid;gap:1rem}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}.feature-icon{width:2.5rem;height:2.5rem;border-radius:.5rem;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.08);color:var(--primary);margin-bottom:.75rem}
+  .app-shell{min-height:100vh;background:var(--background);color:var(--foreground)}.app-header{border-bottom:1px solid var(--border);background:var(--card)}.app-header-inner{max-width:80rem;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 1.5rem}.app-layout{max-width:80rem;margin:0 auto;display:flex;gap:1.5rem;padding:1.5rem}.sidebar{width:14rem;flex-shrink:0}.side-nav{position:sticky;top:5rem;display:flex;flex-direction:column;gap:.25rem}.side-link{display:flex;align-items:center;gap:.5rem;border-radius:.375rem;padding:.5rem .75rem;color:var(--muted-foreground);font-weight:500;text-decoration:none;border:0;background:transparent;text-align:left}.side-link:hover,.side-link.active{background:var(--accent);color:var(--accent-foreground)}.main{min-width:0;flex:1}.mobile-tabs{display:none;gap:.25rem;overflow:auto;margin-bottom:1rem}.page-title{font-size:1.875rem;line-height:2.25rem;font-weight:800;letter-spacing:0;margin:0}.table{width:100%;border-collapse:collapse;font-size:.875rem}.table th{background:rgba(241,245,249,.7);color:var(--muted-foreground);font-size:.75rem;text-transform:uppercase;text-align:left;font-weight:600;padding:.55rem 1rem}.table td{border-top:1px solid var(--border);padding:.6rem 1rem;vertical-align:middle}.code{display:block;background:var(--muted);border-radius:.5rem;padding:.75rem;font-size:.75rem;white-space:pre-wrap;overflow:auto;max-height:30rem}.dark-code{background:#0f172a;color:#e2e8f0}.toast{position:fixed;right:1.5rem;bottom:1.5rem;z-index:9999;background:#0f172a;color:#fff;border-radius:.5rem;padding:.75rem 1rem;box-shadow:0 20px 30px -15px rgba(15,23,42,.45);opacity:0;transform:translateY(.5rem);pointer-events:none;transition:.2s}.toast.show{opacity:1;transform:translateY(0)}.toast.error{background:#991b1b}.toast.success{background:#065f46}.toast.warn{background:#92400e}.dialog-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:1rem;z-index:80}.dialog{width:min(56rem,100%);max-height:90vh;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:.75rem;box-shadow:0 30px 80px rgba(15,23,42,.35)}.dialog-head{padding:1.5rem;border-bottom:1px solid var(--border)}.dialog-body{padding:1.5rem}.dialog-foot{display:flex;justify-content:flex-end;gap:.5rem;padding:1rem 1.5rem;border-top:1px solid var(--border)}.tabs-list{display:inline-flex;background:var(--muted);border-radius:.5rem;padding:.25rem}.tab-btn{border:0;background:transparent;border-radius:.375rem;height:2rem;padding:0 1rem;font-weight:500;color:var(--muted-foreground)}.tab-btn.active{background:var(--background);color:var(--foreground);box-shadow:0 1px 2px rgba(15,23,42,.08)}.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}.auth-card{width:100%;max-width:28rem}.spinner{width:1rem;height:1rem;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:999px;animation:spin 1s linear infinite;display:inline-block}@keyframes spin{to{transform:rotate(360deg)}}
+  @media (max-width:900px){.grid-3,.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}.app-layout{display:block}.sidebar{display:none}.mobile-tabs{display:flex}.nav{display:none}.site-header-inner,.app-header-inner,.app-layout,.app-container{padding-left:1rem;padding-right:1rem}.app-header-inner{flex-wrap:wrap}.app-header-inner .brand-sub{display:none}}
+  @media (max-width:640px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.hero-inner{padding:4rem 1rem 5rem}.section{padding:4rem 0}.app-header-inner{align-items:flex-start}.table{min-width:48rem}.hide-sm{display:none}.btn-lg{width:100%;}.hero-actions{flex-direction:column}.page-title{font-size:1.6rem}.toast{left:1rem;right:1rem}}
 </style>
 </head>
-<body class="min-h-screen">
-<div id="app"></div>
-<div id="toast-host"></div>
+<body>
+<div id="view-landing">
+  <header class="site-header"><div class="container site-header-inner"><a href="#" class="brand" data-action="goto-landing"><span class="brand-mark"><svg class="plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5c1.2-1.2 1.6-2.9.8-3.7s-2.5-.4-3.7.8L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.4-.1.9.3 1.1l6 3.7-2.4 2.4-2.2-.5c-.4-.1-.8.1-1 .4l-.2.3c-.2.4-.1.8.2 1.1l2.3 1.8 1.8 2.3c.3.3.7.4 1.1.2l.3-.2c.4-.2.5-.6.4-1l-.5-2.2L12 14l3.7 6c.2.4.7.5 1.1.3l.5-.3c.4-.2.6-.6.5-1.1Z"/></svg></span><span><span style="font-size:.875rem;font-weight:700;line-height:1.1">FareRule AI</span><br><span style="font-size:.68rem;color:var(--muted-foreground);line-height:1.1">Standardization Engine</span></span></a><nav class="nav"><a href="#features">Features</a><a href="#how">How it works</a><a href="#pricing">Pricing</a></nav><div style="display:flex;gap:.5rem"><button class="btn btn-ghost btn-sm" data-action="goto-login">Login</button><button class="btn btn-primary btn-sm" data-action="goto-login">Get Started</button></div></div></header>
+  <main><section class="hero"><div class="container hero-inner"><span class="badge badge-secondary" style="margin-bottom:1.5rem">v1 · Offline-first AI</span><h1 class="h1">Standardize Airline Fare Rules <span style="color:var(--primary)">Instantly</span></h1><p style="max-width:42rem;margin:1.25rem auto 0;color:var(--muted-foreground);font-size:1.125rem">FRAA converts raw fare rules from any supplier into a single, deterministic JSON format — hashed, cached, and ready to serve everywhere.</p><div class="hero-actions" style="display:flex;align-items:center;justify-content:center;gap:.75rem;margin-top:2rem"><button class="btn btn-primary btn-lg" data-action="goto-login">Get Started <span>→</span></button><button class="btn btn-outline btn-lg" data-action="goto-login" data-after-login="lookup">Live Demo</button></div><div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.5rem 1.5rem;margin-top:2.5rem;color:var(--muted-foreground);font-size:.75rem"><span>✓ Deterministic output</span><span>✓ SHA-256 dedupe</span><span>✓ Supplier-aware</span><span>✓ Instant API</span></div></div></section>
+  <section id="features" class="section section-muted"><div class="container"><div style="max-width:42rem;margin:0 auto;text-align:center"><h2 class="h2">Built for travel platforms</h2><p class="muted" style="margin-top:.75rem">Every feature is designed around one rule: never standardize the same thing twice.</p></div><div class="grid grid-3" style="margin-top:3rem"><div class="card card-header"><div class="feature-icon">#</div><div class="card-title">Deterministic Output</div><p class="card-desc">Same input → same hash → same JSON. Always.</p></div><div class="card card-header"><div class="feature-icon">CPU</div><div class="card-title">Offline AI Engine</div><p class="card-desc">Rule-based extractor first; AI only on miss.</p></div><div class="card card-header"><div class="feature-icon">↔</div><div class="card-title">Supplier Integration</div><p class="card-desc">Ingest rules from airlines, GDS, or aggregators.</p></div><div class="card card-header"><div class="feature-icon">⚡</div><div class="card-title">Instant API</div><p class="card-desc">GET /api/fare-rule returns cached JSON in milliseconds.</p></div><div class="card card-header"><div class="feature-icon">✓</div><div class="card-title">Hash-Verified Cache</div><p class="card-desc">Never re-process the same rule twice.</p></div><div class="card card-header"><div class="feature-icon">DB</div><div class="card-title">Versioned Master</div><p class="card-desc">Edit, bump versions, and deactivate without losing history.</p></div></div></div></section>
+  <section id="how" class="section"><div class="container"><div style="max-width:42rem;margin:0 auto;text-align:center"><h2 class="h2">How it works</h2><p class="muted" style="margin-top:.75rem">Four steps. Zero duplicates.</p></div><div class="grid grid-4" style="margin-top:3rem"><div class="card" style="padding:1.25rem"><div style="font-family:monospace;color:var(--primary);font-size:.75rem">01</div><div style="font-weight:600;margin-top:.5rem">Upload Rule</div><p class="muted" style="font-size:.875rem;margin:.25rem 0 0">Paste a raw fare rule from any supplier — HTML or plain text.</p></div><div class="card" style="padding:1.25rem"><div style="font-family:monospace;color:var(--primary);font-size:.75rem">02</div><div style="font-weight:600;margin-top:.5rem">Standardize</div><p class="muted" style="font-size:.875rem;margin:.25rem 0 0">Hash → cache lookup → rule engine → AI fallback only if needed.</p></div><div class="card" style="padding:1.25rem"><div style="font-family:monospace;color:var(--primary);font-size:.75rem">03</div><div style="font-weight:600;margin-top:.5rem">Store</div><p class="muted" style="font-size:.875rem;margin:.25rem 0 0">Deduplicated, versioned, supplier-tagged in Supabase.</p></div><div class="card" style="padding:1.25rem"><div style="font-family:monospace;color:var(--primary);font-size:.75rem">04</div><div style="font-weight:600;margin-top:.5rem">Serve Everywhere</div><p class="muted" style="font-size:.875rem;margin:.25rem 0 0">One JSON contract for booking, support, and ops apps.</p></div></div></div></section>
+  <section id="pricing" class="section section-muted"><div class="container"><div style="max-width:42rem;margin:0 auto;text-align:center"><h2 class="h2">Simple pricing</h2><p class="muted" style="margin-top:.75rem">Start free. Scale when you're ready.</p></div><div class="grid grid-3" style="margin-top:3rem"><div class="card"><div class="card-header"><div class="card-title">Starter</div><p class="card-desc">For prototypes</p><div style="font-size:1.875rem;font-weight:800;margin-top:.5rem">$0</div></div><div class="card-content"><p>✓ 1k rules/mo</p><p>✓ Hash dedupe</p><p>✓ Open API</p><button class="btn btn-outline" style="width:100%;margin-top:1rem" data-action="goto-login">Choose Starter</button></div></div><div class="card" style="border-color:var(--primary);box-shadow:0 10px 30px -18px rgba(15,23,42,.5)"><div class="card-header"><div style="display:flex;justify-content:space-between;align-items:center"><div class="card-title">Pro</div><span class="badge">Popular</span></div><p class="card-desc">For growing platforms</p><div style="font-size:1.875rem;font-weight:800;margin-top:.5rem">$199<span class="muted" style="font-size:.875rem;font-weight:400">/mo</span></div></div><div class="card-content"><p>✓ 100k rules/mo</p><p>✓ Supplier ingestion</p><p>✓ Versioning</p><p>✓ Email support</p><button class="btn btn-primary" style="width:100%;margin-top:1rem" data-action="goto-login">Choose Pro</button></div></div><div class="card"><div class="card-header"><div class="card-title">Enterprise</div><p class="card-desc">For travel networks</p><div style="font-size:1.875rem;font-weight:800;margin-top:.5rem">Custom</div></div><div class="card-content"><p>✓ Unlimited rules</p><p>✓ SLA + on-prem</p><p>✓ Custom AI providers</p><p>✓ Dedicated support</p><button class="btn btn-outline" style="width:100%;margin-top:1rem" data-action="goto-login">Choose Enterprise</button></div></div></div></div></section>
+  <section class="section"><div class="container"><div class="card" style="max-width:48rem;margin:0 auto;padding:2.5rem;text-align:center"><h3 style="font-size:1.875rem;line-height:2.25rem;font-weight:800;margin:0">Standardize your first rule in 30 seconds</h3><p class="muted" style="margin:.75rem auto 0;max-width:36rem">Sign in with Supabase Auth and start processing fare rules.</p><div style="display:flex;justify-content:center;gap:.75rem;margin-top:1.5rem;flex-wrap:wrap"><button class="btn btn-primary btn-lg" data-action="goto-login">Continue</button><button class="btn btn-outline btn-lg" data-action="goto-login" data-after-login="supplier">Try Supplier Upload</button></div></div></div></section></main><footer style="border-top:1px solid var(--border);padding:2rem;text-align:center;color:var(--muted-foreground);font-size:.75rem">© 2026 FareRule AI Agent · Standardize Once. Serve Everywhere.</footer>
+</div>
 
+<div id="view-login" class="hidden auth-wrap"><div class="auth-card"><a href="#" class="brand" style="justify-content:center;margin-bottom:1.5rem" data-action="goto-landing"><span class="brand-mark" style="height:2.5rem;width:2.5rem"><svg class="plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5c1.2-1.2 1.6-2.9.8-3.7s-2.5-.4-3.7.8L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.4-.1.9.3 1.1l6 3.7-2.4 2.4-2.2-.5c-.4-.1-.8.1-1 .4l-.2.3c-.2.4-.1.8.2 1.1l2.3 1.8 1.8 2.3c.3.3.7.4 1.1.2l.3-.2c.4-.2.5-.6.4-1l-.5-2.2L12 14l3.7 6c.2.4.7.5 1.1.3l.5-.3c.4-.2.6-.6.5-1.1Z"/></svg></span><span style="font-weight:700;font-size:1rem">FareRule AI</span></a><div class="card"><div class="card-header"><div class="card-title">Welcome</div><p class="card-desc">Sign in or create an account to access the dashboard.</p></div><div class="card-content"><div class="tabs-list" style="display:grid;grid-template-columns:1fr 1fr;width:100%;margin-bottom:1rem"><button class="tab-btn auth-tab active" data-auth-mode="signin">Sign In</button><button class="tab-btn auth-tab" data-auth-mode="signup">Sign Up</button></div><form id="form-auth" class="grid" style="gap:1rem"><div><label for="auth-email">Email</label><input id="auth-email" type="email" class="input" placeholder="you@company.com" autocomplete="email" required></div><div><label for="auth-password">Password</label><input id="auth-password" type="password" class="input" placeholder="••••••••" autocomplete="current-password" minlength="6" required></div><button id="auth-submit" class="btn btn-primary" style="width:100%" type="submit">Login</button></form><p id="signup-note" class="hidden muted" style="font-size:.75rem;margin:.75rem 0 0">If email confirmation is enabled in Supabase, check your inbox before signing in.</p><p style="text-align:center;font-size:.75rem;margin:1rem 0 0"><button class="btn-link" data-action="goto-landing">← Back to home</button></p></div></div></div></div>
+
+<div id="view-app" class="hidden app-shell"><header class="app-header"><div class="app-header-inner"><a href="#" class="brand" data-app-tab="dashboard"><span class="brand-mark"><svg class="plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5c1.2-1.2 1.6-2.9.8-3.7s-2.5-.4-3.7.8L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.4-.1.9.3 1.1l6 3.7-2.4 2.4-2.2-.5c-.4-.1-.8.1-1 .4l-.2.3c-.2.4-.1.8.2 1.1l2.3 1.8 1.8 2.3c.3.3.7.4 1.1.2l.3-.2c.4-.2.5-.6.4-1l-.5-2.2L12 14l3.7 6c.2.4.7.5 1.1.3l.5-.3c.4-.2.6-.6.5-1.1Z"/></svg></span><span><span style="font-size:.875rem;font-weight:700;line-height:1.1">FareRule AI Agent</span><br><span class="brand-sub" style="font-size:.68rem;color:var(--muted-foreground);line-height:1.1">Standardization Engine</span></span></a><div style="display:flex;align-items:center;gap:.75rem"><span id="user-email" class="muted hide-sm" style="font-size:.75rem"></span><button class="btn btn-ghost btn-sm" data-action="logout">Logout</button></div></div></header><div class="app-layout"><aside class="sidebar"><nav id="side-nav" class="side-nav"></nav></aside><main class="main"><div id="mobile-tabs" class="mobile-tabs"></div>
+  <section id="tab-dashboard" class="app-section"></section>
+  <section id="tab-lookup" class="app-section hidden"></section>
+  <section id="tab-standardize" class="app-section hidden"></section>
+  <section id="tab-supplier" class="app-section hidden"></section>
+  <section id="tab-rules" class="app-section hidden"></section>
+  <section id="tab-fallback" class="app-section hidden"></section>
+  <section id="tab-dropdowns" class="app-section hidden"></section>
+  <section id="tab-settings" class="app-section hidden"></section>
+</main></div></div>
+<div id="dialog-root"></div><div id="toast" class="toast"></div>
 <script>
-/* =====================================================================
-   FRAA Standalone — single-file port of the React app
-   ===================================================================== */
+const DEFAULT_SUPABASE_URL = 'https://tobwjsgtjirhgxbwhpzl.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvYndqc2d0amlyaGd4YndocHpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNzg0NzIsImV4cCI6MjA5Mjk1NDQ3Mn0.QaMJrx0E7KkpBUeiXrayy6Vi-vTfrkLVsKsd4gjBDrI';
+const SQL_SCHEMA = `-- ============================================================
+-- FareRule AI Agent (FRAA) — Supabase schema
+-- Run this in Supabase SQL Editor. Users are created in Supabase Auth.
+-- ============================================================
 
-/* ---------- Logo (inline SVG, horizontal) ---------- */
-const LOGO_SVG = `
-<svg viewBox="0 0 220 44" xmlns="http://www.w3.org/2000/svg" class="h-9">
-  <defs>
-    <linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
-  </defs>
-  <g transform="translate(2,4)">
-    <rect width="36" height="36" rx="10" fill="url(#lg)"/>
-    <path d="M7 22 L29 11 L23 22 L29 33 Z" fill="white" opacity=".95"/>
-  </g>
-  <text x="46" y="22" font-family="ui-sans-serif,system-ui" font-weight="700" font-size="18" fill="#e6edf7">FRAA</text>
-  <text x="46" y="36" font-family="ui-sans-serif,system-ui" font-weight="500" font-size="10" fill="#94a3b8" letter-spacing="2">FARERULE · AI · AGENT</text>
-</svg>`;
+create extension if not exists pgcrypto;
 
-/* ---------- Storage keys ---------- */
-const NS = "fraa.v3";
-const K = {
-  rules: NS+".rules",
-  log: NS+".fallback_log",
-  settings: NS+".settings",
-  auth: NS+".auth",
-  supa: NS+".supa",
-  dropdowns: NS+".dropdowns_cache",
-};
+create table if not exists public."Ref_Airline" (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  name text not null,
+  created_at timestamptz default now()
+);
 
-/* ---------- Default dropdowns (used only if Supabase has no rows) ---------- */
-const DEFAULT_DROPDOWNS = {
-  airline: ["Air India","IndiGo","SpiceJet","Vistara","Akasa Air","Emirates","Qatar Airways","Singapore Airlines","Lufthansa","British Airways"],
-  supplier: ["Amadeus","Sabre","Travelport","TBO","Riya","Direct (Airline GDS)","Other"],
-  fare_type: ["refundable","non-refundable","partially-refundable","promo"],
-  sector_type: ["domestic","international"],
-};
+create table if not exists public."Ref_Fare_Type" (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  created_at timestamptz default now()
+);
 
-/* ---------- Supabase ---------- */
-let supabase = null;
-let supaLibReady = false;
-window.addEventListener("supabase-lib-ready", ()=>{ supaLibReady=true; bootSupabase(); });
+create table if not exists public."Ref_Sector_Type" (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  created_at timestamptz default now()
+);
 
-function getSupaCfg(){ try { return JSON.parse(localStorage.getItem(K.supa)||"null"); } catch { return null; } }
-function setSupaCfg(c){ localStorage.setItem(K.supa, JSON.stringify(c)); }
-function bootSupabase(){
-  const cfg = getSupaCfg();
-  if (cfg && cfg.url && cfg.key && window.__createSupabase){
-    try { supabase = window.__createSupabase(cfg.url, cfg.key); }
-    catch(e){ console.warn("Supabase init failed", e); supabase=null; }
-  } else supabase=null;
-}
-function supaReady(){ return !!supabase; }
+create table if not exists public."Ref_Supplier" (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  name text not null,
+  type text not null check (type in ('Airline','GDS','Aggregator')),
+  default_airline text,
+  is_active boolean default true,
+  created_at timestamptz default now()
+);
 
-/* ---------- Toast ---------- */
-function toast(msg, kind="info"){
-  const el = document.createElement("div");
-  el.className="toast";
-  el.style.borderColor = kind==="error" ? "#7f1d1d" : kind==="success" ? "#065f46" : "var(--border)";
-  el.textContent = msg;
-  document.getElementById("toast-host").appendChild(el);
-  setTimeout(()=>el.remove(), 2800);
-}
-
-/* ---------- Hashing ---------- */
-function normalizeRuleText(s){
-  return s.replace(/\r\n/g,"\n").replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"')
-    .replace(/\s+/g," ").replace(/[\.,;:!?\-]+/g,m=>m[0]).trim().toLowerCase();
-}
-async function sha256(text){
-  const buf = new TextEncoder().encode(text);
-  const h = await crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-async function hashRule(raw){ const cleaned = normalizeRuleText(raw); return { cleaned, hash: await sha256(cleaned) }; }
-
-/* ---------- Standardizer ---------- */
-const TEMPLATE_SECTIONS = ["Cancellation","Date Change","No Show","Baggage"];
-function emptySections(){ return {Cancellation:[], "Date Change":[], "No Show":[], Baggage:[]}; }
-function renderStandardized(s){
-  return TEMPLATE_SECTIONS.map(k=>{
-    const b = s[k].length ? s[k] : ["Not specified"];
-    return `${k}:\n${b.map(x=>"- "+x).join("\n")}`;
-  }).join("\n\n");
-}
-function deterministicStandardize(raw){
-  const text = raw.replace(/\s+/g," ").trim();
-  const sec = emptySections();
-  const grab=(re,max=3)=>{const out=[];const seen=new Set();let m;const r=new RegExp(re.source,"gi");while((m=r.exec(text))&&out.length<max){const v=m[0].replace(/\s+/g," ").trim();if(!seen.has(v.toLowerCase())){seen.add(v.toLowerCase());out.push(v);}}return out;};
-  sec.Cancellation = grab(/(cancel\w*|refund\w*)[^.;]*?(₹|inr|usd|\$|€)\s?\d[\d,]*[^.;]*/i,3);
-  if (/non[-\s]?refundable/i.test(text)) sec.Cancellation.push("Non-refundable");
-  sec["Date Change"] = grab(/(date\s?change|reschedul\w*|chang\w*)[^.;]*?(₹|inr|usd|\$|€)\s?\d[\d,]*[^.;]*/i,3);
-  if (/fare\s?difference/i.test(text)) sec["Date Change"].push("Fare difference applicable");
-  if (/no[-\s]?show/i.test(text)){
-    const ns=grab(/no[-\s]?show[^.;]{0,80}/i,1); sec["No Show"]= ns.length?ns:["Non-refundable"];
-  }
-  sec.Baggage = grab(/\d{1,3}\s?kg[^.;]{0,40}/i,3);
-  const output = renderStandardized(sec);
-  const filled = Object.values(sec).filter(a=>a.length>0).length / TEMPLATE_SECTIONS.length;
-  return { output, confidence: Math.max(0.55, filled) };
-}
-
-/* ---------- Storage layer (Supabase + localStorage fallback) ---------- */
-function lsGet(k,f){ try{return JSON.parse(localStorage.getItem(k)||"null") ?? f;}catch{return f;} }
-function lsSet(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
-
-const store = {
-  async listRules(){
-    if (supaReady()){
-      const { data, error } = await supabase.from("fare_rules").select("*").order("created_at",{ascending:false});
-      if (!error && data) return data;
-    }
-    return lsGet(K.rules, []);
-  },
-  async insertRule(rule){
-    if (supaReady()){
-      const { data, error } = await supabase.from("fare_rules").insert(rule).select().single();
-      if (!error && data) return data;
-    }
-    const all = lsGet(K.rules, []); all.unshift(rule); lsSet(K.rules, all); return rule;
-  },
-  async updateRule(id, patch){
-    if (supaReady()){
-      const { data, error } = await supabase.from("fare_rules").update(patch).eq("id",id).select().single();
-      if (!error && data) return data;
-    }
-    const all = lsGet(K.rules, []); const i = all.findIndex(r=>r.id===id);
-    if (i>=0){ all[i] = {...all[i], ...patch}; lsSet(K.rules, all); return all[i]; }
-    return null;
-  },
-  async deleteRule(id){
-    if (supaReady()){ await supabase.from("fare_rules").delete().eq("id",id); return; }
-    lsSet(K.rules, lsGet(K.rules,[]).filter(r=>r.id!==id));
-  },
-  async findByHash(hash){
-    if (supaReady()){
-      const { data } = await supabase.from("fare_rules").select("*").eq("hash_key",hash).maybeSingle();
-      if (data) return data;
-    }
-    return lsGet(K.rules, []).find(r=>r.hash_key===hash) || null;
-  },
-  async getLog(){
-    if (supaReady()){
-      const { data } = await supabase.from("fallback_log").select("*").order("created_at",{ascending:false}).limit(500);
-      if (data) return data;
-    }
-    return lsGet(K.log, []);
-  },
-  async listDropdowns(){
-    if (supaReady()){
-      const { data, error } = await supabase.from("dropdown_options").select("*").order("category").order("sort_order");
-      if (!error && data && data.length){
-        const grouped = { airline:[], supplier:[], fare_type:[], sector_type:[] };
-        data.forEach(r=>{ if (grouped[r.category]) grouped[r.category].push(r.value); });
-        // Fill any empty group with defaults
-        Object.keys(grouped).forEach(k=>{ if (!grouped[k].length) grouped[k]=DEFAULT_DROPDOWNS[k]; });
-        lsSet(K.dropdowns, grouped);
-        return grouped;
-      }
-    }
-    return lsGet(K.dropdowns, DEFAULT_DROPDOWNS);
-  },
-};
-
-/* ---------- API ---------- */
-const uid = ()=> Math.random().toString(36).slice(2,10) + Date.now().toString(36);
-const nowISO = ()=> new Date().toISOString();
-
-const api = {
-  async ingest(payload){
-    const { cleaned, hash } = await hashRule(payload.raw_text);
-    const existing = await store.findByHash(hash);
-    if (existing) return { rule: existing, matched_existing:true };
-    const { output, confidence } = deterministicStandardize(payload.raw_text);
-    const rule = {
-      id: uid(),
-      airline: payload.airline, supplier: payload.supplier,
-      sector_type: payload.sector_type, fare_type: payload.fare_type,
-      from_sector: payload.from_sector ? payload.from_sector.toUpperCase() : null,
-      to_sector: payload.to_sector ? payload.to_sector.toUpperCase() : null,
-      raw_text: payload.raw_text, cleaned_text: cleaned, hash_key: hash,
-      standardized_output: output, source: "ai", confidence,
-      created_at: nowISO(), updated_at: nowISO(),
-    };
-    const saved = await store.insertRule(rule);
-    return { rule: saved, matched_existing:false };
-  },
-};
-
-/* ---------- Auth (local only) ---------- */
-const auth = {
-  user(){ return lsGet(K.auth, null); },
-  async login(email, password){
-    if (!email || !password) throw new Error("Email and password required");
-    if (!/.+@.+\..+/.test(email)) throw new Error("Invalid email");
-    if (password.length < 6) throw new Error("Password must be 6+ characters");
-    await new Promise(r=>setTimeout(r,300));
-    const u = { email }; lsSet(K.auth, u); return u;
-  },
-  logout(){ localStorage.removeItem(K.auth); },
-};
-
-/* ---------- Router ---------- */
-const routes = {
-  "/login": renderLogin,
-  "/ingest": renderIngest,
-  "/library": renderLibrary,
-  "/fallback-log": renderFallbackLog,
-  "/settings": renderSettings,
-};
-function navigate(path){ location.hash = "#"+path; }
-window.addEventListener("hashchange", route);
-window.addEventListener("DOMContentLoaded", ()=>{
-  bootSupabase();
-  if (!location.hash) location.hash = "#/login";
-  route();
-});
-
-function route(){
-  const path = location.hash.replace(/^#/,"") || "/login";
-  const u = auth.user();
-  if (!u && path !== "/login") return navigate("/login");
-  if (u && path === "/login") return navigate("/ingest");
-  const fn = routes[path] || renderNotFound;
-  if (path === "/login") document.getElementById("app").innerHTML = "", fn(document.getElementById("app"));
-  else renderShell(path, fn);
-}
-
-/* ---------- Shell ---------- */
-function renderShell(path, pageFn){
-  const root = document.getElementById("app");
-  root.innerHTML = `
-    <div class="flex min-h-screen">
-      <aside class="w-64 border-r border-[var(--border)] p-4 hidden md:flex md:flex-col" style="background:#0a0f22">
-        <div class="px-2 py-3">${LOGO_SVG}</div>
-        <nav class="mt-4 flex flex-col gap-1">
-          ${navLink(path,"/ingest","Ingest","M12 4v16m8-8H4")}
-          ${navLink(path,"/library","Library","M4 6h16M4 12h16M4 18h16")}
-          ${navLink(path,"/fallback-log","Fallback Log","M3 12h4l3 9 4-18 3 9h4")}
-          ${navLink(path,"/settings","Settings","M12 8a4 4 0 100 8 4 4 0 000-8z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z")}
-        </nav>
-        <div class="mt-auto pt-4 border-t border-[var(--border)] text-xs text-[var(--muted)]">
-          <div class="px-2 mb-2">Signed in as<br/><span class="text-[var(--text)]">${(auth.user()||{}).email||""}</span></div>
-          <button class="btn w-full" onclick="logout()">Sign out</button>
-        </div>
-      </aside>
-      <main class="flex-1 p-6 md:p-8 max-w-6xl mx-auto w-full" id="page"></main>
-    </div>`;
-  pageFn(document.getElementById("page"));
-}
-function navLink(active, to, label, dPath){
-  return `<a class="nav-link ${active===to?"active":""}" onclick="navigate('${to}')">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${dPath}"/></svg>
-    ${label}
-  </a>`;
-}
-window.navigate = navigate;
-window.logout = ()=>{ auth.logout(); navigate("/login"); };
-
-/* ---------- Pages ---------- */
-
-/* Login */
-function renderLogin(root){
-  root.innerHTML = `
-  <div class="min-h-screen grid md:grid-cols-2">
-    <div class="hidden md:flex flex-col justify-between p-10" style="background:linear-gradient(135deg,#0a0f22,#1a1240)">
-      <div>${LOGO_SVG}</div>
-      <div>
-        <h2 class="text-3xl font-semibold">Standardize fare rules.<br/>Same input → same output.</h2>
-        <p class="mt-3 text-[var(--muted)]">Deterministic hashing + locked template. Backed by your AI of choice.</p>
-      </div>
-      <div class="text-xs text-[var(--muted)]">© FRAA</div>
-    </div>
-    <div class="flex items-center justify-center p-8">
-      <div class="glass w-full max-w-sm p-6">
-        <h1 class="text-xl font-semibold mb-1">Sign in</h1>
-        <p class="text-sm text-[var(--muted)] mb-5">Admin access to the rule library.</p>
-        <form id="loginForm" class="space-y-3">
-          <div><label class="label">Email</label><input class="input" type="email" id="email" placeholder="admin@example.com" required></div>
-          <div><label class="label">Password</label><input class="input" type="password" id="password" minlength="6" placeholder="••••••" required></div>
-          <button class="btn btn-primary w-full justify-center" id="loginBtn" type="submit">Sign in</button>
-        </form>
-      </div>
-    </div>
-  </div>`;
-  document.getElementById("loginForm").addEventListener("submit", async e=>{
-    e.preventDefault();
-    const btn = document.getElementById("loginBtn"); btn.disabled=true; btn.textContent="Signing in…";
-    try{
-      await auth.login(document.getElementById("email").value.trim(), document.getElementById("password").value);
-      toast("Welcome","success"); navigate("/ingest");
-    }catch(err){ toast(err.message,"error"); btn.disabled=false; btn.textContent="Sign in"; }
-  });
-}
-
-/* Ingest */
-async function renderIngest(root){
-  const dd = await store.listDropdowns();
-  root.innerHTML = `
-    <h1 class="text-2xl font-semibold">Ingest rule</h1>
-    <p class="text-sm text-[var(--muted)] mt-1">Paste, upload PDF, or bulk import CSV. Same input always returns the same output.</p>
-
-    <div class="glass mt-6 p-5">
-      <div class="flex gap-2 mb-4" id="tabs">
-        <div class="tab active" data-t="paste">Paste</div>
-        <div class="tab" data-t="pdf">PDF</div>
-        <div class="tab" data-t="csv">CSV</div>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-4 mb-4">
-        <div><label class="label">Airline</label>${selectHTML("airline", dd.airline)}</div>
-        <div><label class="label">Supplier</label>${selectHTML("supplier", dd.supplier)}</div>
-        <div><label class="label">Sector type</label>${selectHTML("sector_type", dd.sector_type)}</div>
-        <div><label class="label">Fare type</label>${selectHTML("fare_type", dd.fare_type)}</div>
-        <div><label class="label">From (optional)</label><input id="from_sector" class="input" placeholder="DEL" maxlength="3"></div>
-        <div><label class="label">To (optional)</label><input id="to_sector" class="input" placeholder="BOM" maxlength="3"></div>
-      </div>
-
-      <div id="modePaste">
-        <label class="label">Raw rule text</label>
-        <textarea class="textarea" id="rawText" placeholder="Paste raw fare rule text…"></textarea>
-        <div class="mt-3 flex gap-2"><button class="btn btn-primary" id="ingestBtn">Standardize & Save</button></div>
-      </div>
-
-      <div id="modePdf" class="hidden">
-        <div class="dz" id="pdfDz">Drop a PDF here or click to upload</div>
-        <input type="file" id="pdfFile" accept="application/pdf" class="hidden">
-        <div id="pdfStatus" class="mt-3 text-sm text-[var(--muted)]"></div>
-      </div>
-
-      <div id="modeCsv" class="hidden">
-        <div class="dz" id="csvDz">Drop a CSV (airline,supplier,sector_type,fare_type,from,to,raw_text)</div>
-        <input type="file" id="csvFile" accept=".csv,text/csv" class="hidden">
-        <div id="csvStatus" class="mt-3 text-sm text-[var(--muted)]"></div>
-      </div>
-    </div>
-
-    <div id="preview" class="mt-6"></div>
-  `;
-  // tabs
-  root.querySelectorAll("#tabs .tab").forEach(t=>t.addEventListener("click",()=>{
-    root.querySelectorAll("#tabs .tab").forEach(x=>x.classList.remove("active"));
-    t.classList.add("active");
-    ["paste","pdf","csv"].forEach(m=>document.getElementById("mode"+m[0].toUpperCase()+m.slice(1)).classList.toggle("hidden", m!==t.dataset.t));
-  }));
-
-  document.getElementById("ingestBtn").addEventListener("click", doIngest);
-
-  // PDF
-  const pdfDz = document.getElementById("pdfDz");
-  const pdfFile = document.getElementById("pdfFile");
-  pdfDz.addEventListener("click",()=>pdfFile.click());
-  ["dragover","dragenter"].forEach(ev=>pdfDz.addEventListener(ev,e=>{e.preventDefault();pdfDz.classList.add("over");}));
-  ["dragleave","drop"].forEach(ev=>pdfDz.addEventListener(ev,e=>{e.preventDefault();pdfDz.classList.remove("over");}));
-  pdfDz.addEventListener("drop",e=>{const f=e.dataTransfer.files[0]; if(f) handlePdf(f);});
-  pdfFile.addEventListener("change",e=>{const f=e.target.files[0]; if(f) handlePdf(f);});
-
-  // CSV
-  const csvDz = document.getElementById("csvDz");
-  const csvFile = document.getElementById("csvFile");
-  csvDz.addEventListener("click",()=>csvFile.click());
-  ["dragover","dragenter"].forEach(ev=>csvDz.addEventListener(ev,e=>{e.preventDefault();csvDz.classList.add("over");}));
-  ["dragleave","drop"].forEach(ev=>csvDz.addEventListener(ev,e=>{e.preventDefault();csvDz.classList.remove("over");}));
-  csvDz.addEventListener("drop",e=>{const f=e.dataTransfer.files[0]; if(f) handleCsv(f);});
-  csvFile.addEventListener("change",e=>{const f=e.target.files[0]; if(f) handleCsv(f);});
-}
-
-function selectHTML(id, options){
-  return `<select id="${id}" class="select">${options.map(o=>`<option value="${o}">${o}</option>`).join("")}</select>`;
-}
-
-function readForm(){
-  return {
-    airline: document.getElementById("airline").value,
-    supplier: document.getElementById("supplier").value,
-    sector_type: document.getElementById("sector_type").value,
-    fare_type: document.getElementById("fare_type").value,
-    from_sector: document.getElementById("from_sector").value.trim() || undefined,
-    to_sector: document.getElementById("to_sector").value.trim() || undefined,
-  };
-}
-
-async function doIngest(text){
-  const raw = typeof text === "string" ? text : document.getElementById("rawText").value.trim();
-  if (!raw){ toast("Raw text is empty","error"); return; }
-  const payload = { ...readForm(), raw_text: raw };
-  try{
-    const res = await api.ingest(payload);
-    renderPreview(res);
-    toast(res.matched_existing ? "Exact match — returned stored output" : "Saved","success");
-  }catch(e){ toast("Ingest failed: "+e.message,"error"); }
-}
-
-async function handlePdf(file){
-  const status = document.getElementById("pdfStatus");
-  status.textContent = "Extracting text…";
-  try{
-    if (window.pdfjsLib){
-      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.js";
-    }
-    const buf = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({data:buf}).promise;
-    let text = "";
-    for (let i=1;i<=doc.numPages;i++){
-      const p = await doc.getPage(i);
-      const c = await p.getTextContent();
-      text += c.items.map(it=>it.str||"").join(" ")+"\n";
-    }
-    status.textContent = "Extracted "+text.length+" chars. Standardizing…";
-    await doIngest(text.replace(/\s+/g," ").trim());
-    status.textContent = "Done.";
-  }catch(e){ status.textContent = "PDF failed: "+e.message; }
-}
-
-async function handleCsv(file){
-  const status = document.getElementById("csvStatus");
-  status.textContent = "Parsing…";
-  Papa.parse(file, {
-    header:true, skipEmptyLines:true,
-    complete: async (res)=>{
-      let n=0, ok=0;
-      for (const row of res.data){
-        if (!row.raw_text) continue;
-        n++;
-        try{
-          await api.ingest({
-            airline: row.airline||"Air India",
-            supplier: row.supplier||"Other",
-            sector_type: (row.sector_type||"domestic").toLowerCase(),
-            fare_type: (row.fare_type||"non-refundable").toLowerCase(),
-            from_sector: row.from || undefined,
-            to_sector: row.to || undefined,
-            raw_text: row.raw_text,
-          });
-          ok++;
-          status.textContent = `Imported ${ok}/${n}…`;
-        }catch{}
-      }
-      status.textContent = `Done — ${ok} of ${n} rows imported.`;
-      toast(`Imported ${ok}/${n}`,"success");
-    },
-    error: e=>{ status.textContent="CSV error: "+e.message; },
-  });
-}
-
-function renderPreview(res){
-  const r = res.rule;
-  document.getElementById("preview").innerHTML = `
-    <div class="glass p-5">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
-          <span class="badge ${res.matched_existing?'badge-blue':'badge-green'}">${res.matched_existing?'EXACT MATCH':'NEW'}</span>
-          <span class="badge">source: ${r.source}</span>
-          <span class="badge">confidence: ${(r.confidence*100).toFixed(0)}%</span>
-        </div>
-        <span class="text-xs text-[var(--muted)]">hash: ${r.hash_key.slice(0,12)}…</span>
-      </div>
-      <div class="pre">${escapeHtml(r.standardized_output)}</div>
-    </div>`;
-}
-
-/* Library */
-async function renderLibrary(root){
-  root.innerHTML = `<h1 class="text-2xl font-semibold">Library</h1>
-    <p class="text-sm text-[var(--muted)] mt-1">Browse, search, and edit stored rules.</p>
-    <div class="glass mt-5 p-4">
-      <input id="search" class="input mb-3" placeholder="Search airline / text / sector…"/>
-      <div id="tableWrap">Loading…</div>
-    </div>`;
-  const refresh = async ()=>{
-    const all = await store.listRules();
-    const q = (document.getElementById("search").value||"").toLowerCase();
-    const filtered = !q ? all : all.filter(r =>
-      (r.airline||"").toLowerCase().includes(q) ||
-      (r.raw_text||"").toLowerCase().includes(q) ||
-      (r.from_sector||"").toLowerCase().includes(q) ||
-      (r.to_sector||"").toLowerCase().includes(q)
-    );
-    document.getElementById("tableWrap").innerHTML = filtered.length ? `
-      <table>
-        <thead><tr><th>Airline</th><th>Sector</th><th>Fare</th><th>Route</th><th>Source</th><th>Updated</th></tr></thead>
-        <tbody>${filtered.map(r=>`
-          <tr data-id="${r.id}">
-            <td>${escapeHtml(r.airline)}</td>
-            <td>${r.sector_type}</td>
-            <td>${r.fare_type}</td>
-            <td>${(r.from_sector||"-")} → ${(r.to_sector||"-")}</td>
-            <td><span class="badge">${r.source}</span></td>
-            <td>${new Date(r.updated_at).toLocaleString()}</td>
-          </tr>`).join("")}</tbody>
-      </table>`
-      : `<div class="text-sm text-[var(--muted)] p-4">No rules yet. Go to Ingest to add some.</div>`;
-    document.querySelectorAll("tbody tr").forEach(tr=>tr.addEventListener("click",()=>openDrawer(filtered.find(x=>x.id===tr.dataset.id))));
-  };
-  document.getElementById("search").addEventListener("input", refresh);
-  refresh();
-}
-
-function openDrawer(r){
-  const host = document.createElement("div");
-  host.innerHTML = `<div class="backdrop" id="bd"></div><div class="drawer p-6">
-    <div class="flex justify-between items-start mb-4">
-      <div>
-        <h2 class="text-lg font-semibold">${escapeHtml(r.airline)} · ${r.fare_type}</h2>
-        <p class="text-xs text-[var(--muted)]">${r.from_sector||"-"} → ${r.to_sector||"-"} · ${r.sector_type}</p>
-      </div>
-      <button class="btn" id="closeDr">Close</button>
-    </div>
-    <div class="space-y-4">
-      <div><div class="label">Raw text</div><div class="pre">${escapeHtml(r.raw_text)}</div></div>
-      <div><div class="label">Standardized output (editable)</div>
-        <textarea class="textarea" id="stdOut">${escapeHtml(r.standardized_output)}</textarea>
-        <div class="flex gap-2 mt-2">
-          <button class="btn btn-primary" id="saveBtn">Save changes</button>
-          <button class="btn btn-danger ml-auto" id="delBtn">Delete</button>
-        </div>
-      </div>
-      <div class="text-xs text-[var(--muted)]">hash: <span class="font-mono">${r.hash_key}</span></div>
-    </div>
-  </div>`;
-  document.body.appendChild(host);
-  const close = ()=>host.remove();
-  host.querySelector("#bd").onclick = close;
-  host.querySelector("#closeDr").onclick = close;
-  host.querySelector("#saveBtn").onclick = async ()=>{
-    await store.updateRule(r.id, { standardized_output: host.querySelector("#stdOut").value, source:"manual", updated_at: nowISO() });
-    toast("Updated","success"); close(); renderLibrary(document.getElementById("page"));
-  };
-  host.querySelector("#delBtn").onclick = async ()=>{
-    if (!confirm("Delete this rule?")) return;
-    await store.deleteRule(r.id); toast("Deleted","success"); close();
-    renderLibrary(document.getElementById("page"));
-  };
-}
-
-/* Fallback log */
-async function renderFallbackLog(root){
-  const log = await store.getLog();
-  root.innerHTML = `<h1 class="text-2xl font-semibold">Fallback log</h1>
-    <p class="text-sm text-[var(--muted)] mt-1">Recent AI fallback events.</p>
-    <div class="glass mt-5 p-4">
-      ${log.length ? `<table>
-        <thead><tr><th>When</th><th>Airline</th><th>Input</th><th>AI response</th><th>Stored</th></tr></thead>
-        <tbody>${log.map(e=>`<tr>
-          <td>${new Date(e.created_at).toLocaleString()}</td>
-          <td>${escapeHtml(e.airline||"-")}</td>
-          <td>${escapeHtml((e.input_text||"").slice(0,80))}…</td>
-          <td>${escapeHtml((e.ai_response||"").slice(0,80))}…</td>
-          <td><span class="badge ${e.stored?'badge-green':'badge-amber'}">${e.stored?'stored':'skipped'}</span></td>
-        </tr>`).join("")}</tbody></table>`
-        : `<div class="text-sm text-[var(--muted)] p-4">No events yet.</div>`}
-    </div>`;
-}
-
-/* Settings */
-function renderSettings(root){
-  const cfg = getSupaCfg() || { url:"", key:"" };
-  root.innerHTML = `
-    <h1 class="text-2xl font-semibold">Settings</h1>
-
-    <div class="glass mt-5 p-5">
-      <h2 class="font-medium mb-1">Supabase backend</h2>
-      <p class="text-sm text-[var(--muted)] mb-4">Connect Supabase for cloud storage and dynamic dropdowns. Falls back to localStorage when not connected.</p>
-      <div class="grid md:grid-cols-2 gap-3">
-        <div><label class="label">Project URL</label><input id="supaUrl" class="input" value="${escapeAttr(cfg.url)}" placeholder="https://https://ehjubncsuagrmtfxbddz.supabase.co.supabase.co"></div>
-        <div><label class="label">Anon key</label><input id="supaKey" class="input" type="password" value="${escapeAttr(cfg.key)}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoanVibmNzdWFncm10ZnhiZGR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjY4MjEsImV4cCI6MjA5MjYwMjgyMX0.I06opMpeNXzXOkIP_08la-E7I8Xpq6IBe8BhntJC2hE"></div>
-      </div>
-      <div class="mt-3 flex gap-2">
-        <button class="btn btn-primary" id="saveSupa">Save & Connect</button>
-        <button class="btn" id="testSupa">Test connection</button>
-        <button class="btn btn-danger" id="dcSupa">Disconnect</button>
-        <span id="supaStatus" class="text-sm self-center ml-2"></span>
-      </div>
-    </div>
-
-    <div class="glass mt-5 p-5">
-      <h2 class="font-medium mb-1">Setup script for Supabase</h2>
-      <p class="text-sm text-[var(--muted)] mb-3">Paste this into the Supabase SQL editor. Creates tables, RLS, and dynamic dropdowns.</p>
-      <div class="pre" id="sqlBlock"></div>
-      <button class="btn mt-3" id="copySql">Copy SQL</button>
-    </div>
-
-    <div class="glass mt-5 p-5">
-      <h2 class="font-medium mb-1">Reset local data</h2>
-      <p class="text-sm text-[var(--muted)] mb-3">Clears localStorage cache (does not touch Supabase).</p>
-      <button class="btn btn-danger" id="resetLocal">Reset local cache</button>
-    </div>
-  `;
-  document.getElementById("sqlBlock").textContent = SUPABASE_SQL;
-  document.getElementById("copySql").onclick = ()=>{ navigator.clipboard.writeText(SUPABASE_SQL); toast("Copied SQL","success"); };
-  document.getElementById("saveSupa").onclick = ()=>{
-    const url=document.getElementById("supaUrl").value.trim();
-    const key=document.getElementById("supaKey").value.trim();
-    if (!url||!key) return toast("URL and key required","error");
-    setSupaCfg({url,key}); bootSupabase();
-    toast("Saved. Reloading dropdowns…","success");
-  };
-  document.getElementById("testSupa").onclick = async ()=>{
-    const s=document.getElementById("supaStatus");
-    if (!supaReady()){ s.textContent="Not connected"; s.style.color="var(--danger)"; return; }
-    s.textContent="Testing…"; s.style.color="var(--muted)";
-    const { error } = await supabase.from("dropdown_options").select("id").limit(1);
-    if (error){ s.textContent="Error: "+error.message; s.style.color="var(--danger)"; }
-    else { s.textContent="✔ Connected"; s.style.color="var(--success)"; }
-  };
-  document.getElementById("dcSupa").onclick = ()=>{ localStorage.removeItem(K.supa); supabase=null; toast("Disconnected","success"); renderSettings(document.getElementById("page")); };
-  document.getElementById("resetLocal").onclick = ()=>{
-    if (!confirm("Clear local cache?")) return;
-    [K.rules,K.log,K.dropdowns].forEach(k=>localStorage.removeItem(k));
-    toast("Cleared","success");
-  };
-}
-
-/* ---------- Helpers ---------- */
-function escapeHtml(s){ return (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-function escapeAttr(s){ return escapeHtml(s).replace(/'/g,"&#39;"); }
-function renderNotFound(root){ root.innerHTML = `<h1 class="text-2xl">Not found</h1><a class="btn mt-4" onclick="navigate('/ingest')">Go home</a>`; }
-
-/* ---------- SQL setup script ---------- */
-const SUPABASE_SQL = `-- ===========================================================
--- FRAA — Supabase setup
--- Paste this entire block into Supabase → SQL Editor → Run
--- ===========================================================
-
--- 1. Fare rules
-create table if not exists public.fare_rules (
-  id text primary key,
+create table if not exists public."FareRule_Master" (
+  id uuid primary key default gen_random_uuid(),
+  supplier_id uuid references public."Ref_Supplier"(id) on delete set null,
   airline text not null,
-  supplier text not null,
-  sector_type text not null check (sector_type in ('domestic','international')),
-  fare_type text not null,
+  sector_type text check (sector_type in ('Domestic','International')),
+  fare_type text,
+  raw_text text not null,
+  cleaned_text text,
+  hash_key text unique not null,
+  standardized_output jsonb not null,
+  confidence_score numeric default 1.0,
+  source text default 'rule_engine',
+  version integer default 1,
+  is_active boolean default true,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public."FareRule_Mapping" (
+  id uuid primary key default gen_random_uuid(),
+  supplier_id uuid references public."Ref_Supplier"(id) on delete set null,
+  airline text not null,
   from_sector text,
   to_sector text,
-  raw_text text not null,
-  cleaned_text text not null,
-  hash_key text not null unique,
-  standardized_output text not null,
-  source text not null default 'ai',
-  confidence numeric not null default 0.7,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index if not exists idx_fare_rules_airline on public.fare_rules(airline);
-create index if not exists idx_fare_rules_fare_type on public.fare_rules(fare_type);
-create index if not exists idx_fare_rules_sector_type on public.fare_rules(sector_type);
-
--- 2. Fallback log
-create table if not exists public.fallback_log (
-  id text primary key default gen_random_uuid()::text,
-  input_text text not null,
-  ai_response text not null,
-  stored boolean not null default false,
-  airline text,
   sector_type text,
   fare_type text,
-  created_at timestamptz not null default now()
+  rule_id uuid references public."FareRule_Master"(id) on delete cascade,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now()
 );
 
--- 3. Dynamic dropdown options (editable from backend)
-create table if not exists public.dropdown_options (
-  id bigserial primary key,
-  category text not null check (category in ('airline','supplier','fare_type','sector_type')),
-  value text not null,
-  label text,
-  sort_order int not null default 0,
-  created_at timestamptz not null default now(),
-  unique(category, value)
+create table if not exists public."FareRule_Fallback_Log" (
+  id uuid primary key default gen_random_uuid(),
+  supplier_id uuid references public."Ref_Supplier"(id) on delete set null,
+  input_text text,
+  api_response text,
+  stored boolean default false,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now()
 );
-create index if not exists idx_dropdown_options_cat on public.dropdown_options(category, sort_order);
 
--- 4. Seed default options (idempotent)
-insert into public.dropdown_options (category, value, label, sort_order) values
-  ('airline','Air India','Air India',1),
-  ('airline','IndiGo','IndiGo',2),
-  ('airline','SpiceJet','SpiceJet',3),
-  ('airline','Vistara','Vistara',4),
-  ('airline','Akasa Air','Akasa Air',5),
-  ('airline','Emirates','Emirates',6),
-  ('airline','Qatar Airways','Qatar Airways',7),
-  ('airline','Singapore Airlines','Singapore Airlines',8),
-  ('airline','Lufthansa','Lufthansa',9),
-  ('airline','British Airways','British Airways',10),
-  ('supplier','Amadeus','Amadeus',1),
-  ('supplier','Sabre','Sabre',2),
-  ('supplier','Travelport','Travelport',3),
-  ('supplier','TBO','TBO',4),
-  ('supplier','Riya','Riya',5),
-  ('supplier','Direct (Airline GDS)','Direct',6),
-  ('supplier','Other','Other',7),
-  ('fare_type','refundable','Refundable',1),
-  ('fare_type','non-refundable','Non-refundable',2),
-  ('fare_type','partially-refundable','Partially refundable',3),
-  ('fare_type','promo','Promo',4),
-  ('sector_type','domestic','Domestic',1),
-  ('sector_type','international','International',2)
-on conflict (category, value) do nothing;
+create index if not exists idx_fraa_hash_key on public."FareRule_Master"(hash_key);
+create index if not exists idx_fraa_master_lookup on public."FareRule_Master"(airline, sector_type, fare_type, is_active);
+create index if not exists idx_fraa_mapping_lookup on public."FareRule_Mapping"(airline, sector_type, fare_type, from_sector, to_sector);
 
--- 5. Row Level Security
-alter table public.fare_rules enable row level security;
-alter table public.fallback_log enable row level security;
-alter table public.dropdown_options enable row level security;
+insert into public."Ref_Sector_Type"(name) values ('Domestic'), ('International') on conflict (name) do nothing;
+insert into public."Ref_Fare_Type"(name) values ('Saver'), ('Flexi'), ('Corporate'), ('Business'), ('Premium Economy') on conflict (name) do nothing;
+insert into public."Ref_Airline"(code, name) values
+  ('AI','Air India'), ('6E','IndiGo'), ('UK','Vistara'), ('SG','SpiceJet'), ('EK','Emirates'), ('QR','Qatar Airways')
+on conflict (code) do nothing;
+insert into public."Ref_Supplier"(code, name, type, default_airline) values
+  ('AI-DIRECT','Air India Direct','Airline','Air India'),
+  ('6E-DIRECT','IndiGo Direct','Airline','IndiGo'),
+  ('AMADEUS','Amadeus','GDS', null), ('SABRE','Sabre','GDS', null),
+  ('TBO','TBO Holidays','Aggregator', null), ('TRAVELPORT','Travelport','GDS', null)
+on conflict (code) do nothing;
 
--- Prototype-friendly policies (anon read+write).
--- Tighten before production by restricting writes to an admin role.
-drop policy if exists "anon read fare_rules" on public.fare_rules;
-drop policy if exists "anon write fare_rules" on public.fare_rules;
-create policy "anon read fare_rules" on public.fare_rules for select using (true);
-create policy "anon write fare_rules" on public.fare_rules for all using (true) with check (true);
+alter table public."Ref_Airline" enable row level security;
+alter table public."Ref_Fare_Type" enable row level security;
+alter table public."Ref_Sector_Type" enable row level security;
+alter table public."Ref_Supplier" enable row level security;
+alter table public."FareRule_Master" enable row level security;
+alter table public."FareRule_Mapping" enable row level security;
+alter table public."FareRule_Fallback_Log" enable row level security;
 
-drop policy if exists "anon read fallback_log" on public.fallback_log;
-drop policy if exists "anon write fallback_log" on public.fallback_log;
-create policy "anon read fallback_log" on public.fallback_log for select using (true);
-create policy "anon write fallback_log" on public.fallback_log for all using (true) with check (true);
-
-drop policy if exists "anon read dropdown_options" on public.dropdown_options;
-drop policy if exists "admin write dropdown_options" on public.dropdown_options;
-create policy "anon read dropdown_options" on public.dropdown_options for select using (true);
-create policy "admin write dropdown_options" on public.dropdown_options for all using (true) with check (true);
-`;
+do $$
+declare t text;
+begin
+  foreach t in array array['Ref_Airline','Ref_Fare_Type','Ref_Sector_Type','Ref_Supplier','FareRule_Master','FareRule_Mapping','FareRule_Fallback_Log'] loop
+    execute format('drop policy if exists "authenticated read" on public.%I', t);
+    execute format('create policy "authenticated read" on public.%I for select to authenticated using (true)', t);
+    execute format('drop policy if exists "authenticated insert" on public.%I', t);
+    execute format('create policy "authenticated insert" on public.%I for insert to authenticated with check (true)', t);
+    execute format('drop policy if exists "authenticated update" on public.%I', t);
+    execute format('create policy "authenticated update" on public.%I for update to authenticated using (true) with check (true)', t);
+    execute format('drop policy if exists "authenticated delete" on public.%I', t);
+    execute format('create policy "authenticated delete" on public.%I for delete to authenticated using (true)', t);
+  end loop;
+end $$;`;
+const NAV = [
+  ['dashboard','▦','Dashboard'],['lookup','⌕','Lookup'],['standardize','✦','Standardize'],['supplier','▣','Supplier Upload'],['rules','DB','Rules'],['fallback','!','Fallback Logs'],['dropdowns','☑','Dropdowns'],['settings','⚙','Settings']
+];
+const state = { sb:null, user:null, refs:{airlines:[],fareTypes:[],sectorTypes:[],suppliers:[]}, stats:{rules:0,mappings:0,fallbacks:0,suppliers:0}, recent:[], rules:[], fallback:[], authMode:'signin', pendingTab:'dashboard', currentTab:'dashboard' };
+const $ = (id)=>document.getElementById(id);
+const esc = (s)=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function show(id){$(id)?.classList.remove('hidden')} function hide(id){$(id)?.classList.add('hidden')}
+function toast(msg,type=''){const t=$('toast');t.textContent=msg;t.className='toast show '+type;setTimeout(()=>t.classList.remove('show'),3000)}
+function setView(view){['view-landing','view-login','view-app'].forEach(hide);show('view-'+view)}
+function setBusy(id,busy,text){const btn=$(id); if(!btn)return; btn.disabled=busy; if(text!==undefined)btn.innerHTML=busy?'<span class="spinner"></span> '+text:btn.dataset.label||btn.textContent;}
+function getCfg(){return {url:localStorage.getItem('fraa_supabase_url')||DEFAULT_SUPABASE_URL,key:localStorage.getItem('fraa_supabase_key')||DEFAULT_SUPABASE_ANON_KEY}}
+function initSupabase(){const c=getCfg(); try{state.sb=window.supabase.createClient(c.url,c.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:localStorage}});return true}catch(e){toast('Supabase client failed: '+e.message,'error');return false}}
+function renderNav(){const html=NAV.map(([tab,ic,label])=>`<button class="side-link ${tab===state.currentTab?'active':''}" data-app-tab="${tab}"><span style="width:1.15rem;text-align:center;font-size:.78rem">${ic}</span>${label}</button>`).join('');$('side-nav').innerHTML=html;$('mobile-tabs').innerHTML=html.replaceAll('side-link','side-link').replaceAll('style="width:1.15rem;text-align:center;font-size:.78rem"','style="width:1rem;text-align:center;font-size:.72rem"')}
+function switchTab(tab){state.currentTab=tab;document.querySelectorAll('.app-section').forEach(s=>s.classList.add('hidden'));show('tab-'+tab);renderNav();location.hash='app/'+tab; if(tab==='dashboard')loadDashboard(); if(tab==='rules')loadRules(); if(tab==='fallback')loadFallback(); if(tab==='dropdowns')loadRefs().then(renderDropdowns);}
+function configureApp(){renderNav();renderDashboard();renderLookup();renderStandardize();renderSupplier();renderRules();renderFallback();renderDropdowns();renderSettings();}
+async function boot(){initSupabase();configureApp();$('sql-schema').textContent=SQL_SCHEMA;const c=getCfg();$('cfg-url').value=c.url;$('cfg-key').value=c.key;$('cfg-openai').value=localStorage.getItem('fraa_openai_key')||'';bindEvents();const h=location.hash.replace(/^#/,''); if(h.startsWith('app/')) state.pendingTab=h.split('/')[1]||'dashboard'; const {data:{session}}=await state.sb.auth.getSession(); if(session?.user){state.user=session.user;await enterApp(state.pendingTab)} else {setView('landing')} state.sb.auth.onAuthStateChange((event,session)=>{setTimeout(async()=>{if(session?.user){state.user=session.user;await enterApp(state.pendingTab||'dashboard')}else{state.user=null;setView('landing')}},0)});}
+async function enterApp(tab='dashboard'){setView('app');$('user-email').textContent=state.user?.email||'';await loadRefs();switchTab(tab)}
+function bindEvents(){document.body.addEventListener('click',e=>{const action=e.target.closest('[data-action]')?.dataset.action;if(action){if(action==='goto-login'){state.pendingTab=e.target.closest('[data-after-login]')?.dataset.afterLogin||'dashboard';setView('login')} if(action==='goto-landing')setView('landing'); if(action==='logout')logout();return} const tab=e.target.closest('[data-app-tab]')?.dataset.appTab;if(tab){if(state.user){switchTab(tab)}else{state.pendingTab=tab;setView('login')}}});document.querySelectorAll('.auth-tab').forEach(btn=>btn.addEventListener('click',()=>{state.authMode=btn.dataset.authMode;document.querySelectorAll('.auth-tab').forEach(b=>b.classList.toggle('active',b===btn));$('auth-submit').textContent=state.authMode==='signup'?'Create account':'Login';$('signup-note').classList.toggle('hidden',state.authMode!=='signup')}));$('form-auth').addEventListener('submit',authSubmit);}
+async function authSubmit(e){e.preventDefault();const email=$('auth-email').value.trim();const password=$('auth-password').value;if(!email||!password)return toast('Email and password required','error');if(state.authMode==='signup'&&password.length<6)return toast('Password must be at least 6 characters','error');const btn=$('auth-submit');btn.disabled=true;const old=btn.innerHTML;btn.innerHTML='<span class="spinner"></span> Please wait';try{if(state.authMode==='signin'){const {error}=await state.sb.auth.signInWithPassword({email,password});if(error)throw error;toast('Signed in','success')}else{const {data,error}=await state.sb.auth.signUp({email,password,options:{emailRedirectTo:location.href.split('#')[0]}});if(error)throw error;if(data.session)toast('Account created','success');else toast('Check your email to confirm your account','success')}}catch(err){toast(err.message||'Authentication failed','error')}finally{btn.disabled=false;btn.innerHTML=old}}
+async function logout(){await state.sb.auth.signOut();state.user=null;setView('landing');toast('Signed out','success')}
+async function q(table,select='*'){return state.sb.from(table).select(select)}
+const REF_TABLES=[['Ref_Airline','airlines','name'],['Ref_Fare_Type','fareTypes','name'],['Ref_Sector_Type','sectorTypes','name'],['Ref_Supplier','suppliers','name']];
+const APP_TABLES=['FareRule_Master','FareRule_Mapping','FareRule_Fallback_Log'];
+function tableError(table,error){if(!error)return '';const msg=error.message||String(error);return `Could not read ${table}: ${msg}${/permission|rls|policy/i.test(msg)?' (check RLS policies for authenticated users)':''}${/relation|does not exist|schema cache/i.test(msg)?' (check exact quoted table name/casing)':''}`}
+async function loadRefs(){try{const results=await Promise.all(REF_TABLES.map(([table])=>state.sb.from(table).select('*').order(table==='Ref_Supplier'?'name':'name')));const failed=results.map((r,i)=>r.error?tableError(REF_TABLES[i][0],r.error):'').filter(Boolean);if(failed.length)throw new Error(failed.join(' | '));const empty=results.map((r,i)=>(!r.data||!r.data.length)?REF_TABLES[i][0]:null).filter(Boolean);state.refs={airlines:results[0].data||[],fareTypes:results[1].data||[],sectorTypes:results[2].data||[],suppliers:results[3].data||[]};populateAllSelects();if(empty.length)toast(`Reference table(s) empty: ${empty.join(', ')}. Run the insert SQL in Settings.`, 'error');return {ok:true,empty}}catch(e){toast(e.message||'Reference data failed to load','error'); console.error(e);return {ok:false,error:e}}}
+function opts(rows,label='name',value='name',ph='Select'){return `<option value="">${ph}</option>`+rows.map(r=>`<option value="${esc(r[value]??r.id)}">${esc(r[label])}${r.code?` (${esc(r.code)})`:''}</option>`).join('')}
+function populateAllSelects(){['lookup-airline','std-airline','single-airline','bulk-airline','new-supplier-airline'].forEach(id=>$(id)&&($(id).innerHTML=opts(state.refs.airlines,'name','name','Select airline')));['lookup-fare','std-fare','single-fare','bulk-fare'].forEach(id=>$(id)&&($(id).innerHTML=opts(state.refs.fareTypes,'name','name','Select fare type')));['std-sector','single-sector','bulk-sector'].forEach(id=>$(id)&&($(id).innerHTML=opts(state.refs.sectorTypes,'name','name','Select sector')));['single-supplier','bulk-supplier'].forEach(id=>$(id)&&($(id).innerHTML=opts(state.refs.suppliers.filter(s=>s.is_active),'name','id','Select supplier')))}
+function cleanText(t){return t.trim().replace(/\s+/g,' ')} async function sha256(t){const buf=new TextEncoder().encode(cleanText(t).toLowerCase());const h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')} function currency(s){const m=String(s).match(/USD|EUR|GBP|INR|AED|SAR/i);return m?m[0].toUpperCase():(String(s).includes('$')?'USD':'USD')} function lineFrom(kind,m){return `${kind} fee ${currency(m[0])} ${m[1]}`}
+function extractRule(text){const t=cleanText(text);const out={cancellation:[],date_change:[],no_show:[],baggage:[]};const money='(?:USD|EUR|GBP|INR|AED|SAR|\\$)\\s?(\\d+(?:\\.\\d+)?)';let m;if(m=t.match(new RegExp('cancel(?:lation)?[^.]*?'+money,'i')))out.cancellation.push(lineFrom('Cancellation',m));else if(/non[-\s]?refundable/i.test(t))out.cancellation.push('Ticket is non-refundable after issue');if(m=t.match(new RegExp('(?:date\\s?change|reissue|change\\s?fee)[^.]*?'+money,'i')))out.date_change.push(lineFrom('Date change',m));if(m=t.match(new RegExp('no[-\\s]?show[^.]*?'+money,'i')))out.no_show.push(lineFrom('No-show',m));if(m=t.match(/baggage[^.]*?(\d+)\s?(?:piece|pcs|pc|bag)[^.]*?(\d+)\s?(?:kg|kgs)/i))out.baggage.push(`Baggage allowance ${m[1]} piece(s), ${m[2]} kg`);Object.keys(out).forEach(k=>{if(!out[k].length)out[k].push('Not specified')});return out}
+function renderRule(rule){return `<div class="grid grid-2">${[['cancellation','Cancellation','✕'],['date_change','Date Change','◷'],['no_show','No Show','⊘'],['baggage','Baggage','▣']].map(([k,l,ic])=>`<div class="card"><div class="card-header" style="padding-bottom:.75rem"><div class="card-title" style="font-size:.875rem;display:flex;gap:.5rem;align-items:center"><span>${ic}</span>${l}</div></div><div class="card-content" style="padding-top:0"><ul style="margin:0;padding-left:1rem;font-size:.875rem">${(rule?.[k]||['Not specified']).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>`).join('')}</div>`}
+async function standardize(args){const cleaned=cleanText(args.raw_text);const hash_key=await sha256(cleaned);const {data:existing,error:exErr}=await state.sb.from('FareRule_Master').select('id,standardized_output').eq('hash_key',hash_key).eq('is_active',true).maybeSingle();if(exErr)throw exErr;if(existing){await ensureMapping(existing.id,args);return {status:'FOUND_CACHE',confidence:'EXACT',rule:existing.standardized_output,hash_key,source:'cache'}}const rule=extractRule(cleaned);const {data,error}=await state.sb.from('FareRule_Master').insert({supplier_id:args.supplier_id||null,airline:args.airline,sector_type:args.sector_type,fare_type:args.fare_type,raw_text:args.raw_text,cleaned_text:cleaned,hash_key,standardized_output:rule,confidence_score:.9,source:'rule_engine',version:1,is_active:true,created_by:state.user?.id||null}).select('id').single();if(error)throw error;await ensureMapping(data.id,args);return {status:'RULE_ENGINE',confidence:'RULE',rule,hash_key,source:'rule_engine'}}
+async function ensureMapping(rule_id,args){const {data}=await state.sb.from('FareRule_Mapping').select('id').eq('airline',args.airline).eq('fare_type',args.fare_type).eq('sector_type',args.sector_type).limit(1).maybeSingle();if(data)return;await state.sb.from('FareRule_Mapping').insert({supplier_id:args.supplier_id||null,airline:args.airline,fare_type:args.fare_type,sector_type:args.sector_type,from_sector:args.sector_type==='International'?args.from_sector||null:null,to_sector:args.sector_type==='International'?args.to_sector||null:null,rule_id,created_by:state.user?.id||null})}
+function pageHead(title,desc){return `<div><h1 class="page-title">${title}</h1><p class="muted" style="margin-top:.25rem;font-size:.875rem">${desc}</p></div>`}
+function renderDashboard(){ $('tab-dashboard').innerHTML=`<div class="grid" style="gap:1.5rem">${pageHead('Dashboard','Deterministic standardization with hash dedupe and AI fallback.')}<div class="grid grid-4" id="stats-grid"></div><div class="card"><div class="card-header"><div class="card-title">Recent rules</div><p class="card-desc">Latest standardized fare rules added to the master.</p></div><div class="card-content" id="recent-rules"><p class="muted">Loading…</p></div></div><div class="grid grid-3"><button class="card card-header" data-app-tab="lookup" style="text-align:left"><div class="feature-icon">⌕</div><div class="card-title" style="font-size:1rem">Quick Lookup</div><p class="card-desc">Find standardized rules by airline + fare type.</p></button><button class="card card-header" data-app-tab="standardize" style="text-align:left"><div class="feature-icon">DB</div><div class="card-title" style="font-size:1rem">Standardize</div><p class="card-desc">Paste raw rule, get fixed JSON.</p></button><button class="card card-header" data-app-tab="supplier" style="text-align:left"><div class="feature-icon">▣</div><div class="card-title" style="font-size:1rem">Supplier Upload</div><p class="card-desc">Single or bulk ingest from any supplier.</p></button></div></div>`}
+async function loadDashboard(){try{const [r,m,f,s,recent]=await Promise.all([state.sb.from('FareRule_Master').select('*',{count:'exact',head:true}),state.sb.from('FareRule_Mapping').select('*',{count:'exact',head:true}),state.sb.from('FareRule_Fallback_Log').select('*',{count:'exact',head:true}),state.sb.from('Ref_Supplier').select('*',{count:'exact',head:true}),state.sb.from('FareRule_Master').select('id,airline,fare_type,sector_type,version,source,created_at').order('created_at',{ascending:false}).limit(8)]);$('stats-grid').innerHTML=[['Master Rules',r.count||0,'DB'],['Mappings',m.count||0,'☑'],['Fallback Calls',f.count||0,'!'],['Suppliers',s.count||0,'▣']].map(x=>`<div class="card"><div class="card-header" style="display:flex;align-items:center;justify-content:space-between;padding-bottom:.5rem"><div class="stat-title">${x[0]}</div><span class="muted">${x[2]}</span></div><div class="card-content" style="padding-top:0"><div style="font-size:1.875rem;font-weight:800">${x[1]}</div></div></div>`).join('');$('recent-rules').innerHTML=(recent.data||[]).length?`<ul style="list-style:none;margin:0;padding:0">${recent.data.map(row=>`<li style="display:flex;justify-content:space-between;gap:1rem;padding:.55rem 0;border-bottom:1px solid var(--border);font-size:.875rem"><span><span class="badge badge-secondary">${esc(row.airline)}</span> <span class="muted">${esc(row.fare_type)}</span> <span class="badge badge-outline">${esc(row.sector_type)}</span> ${row.source?`<span class="badge badge-outline">${esc(row.source)}</span>`:''}</span><span class="muted" style="font-size:.75rem">v${row.version} · ${new Date(row.created_at).toLocaleString()}</span></li>`).join('')}</ul>`:`<p class="muted">No rules yet. <button class="btn-link" data-app-tab="standardize">Standardize one</button> or <button class="btn-link" data-app-tab="supplier">upload from a supplier</button>.</p>`}catch(e){$('recent-rules').innerHTML=`<div style="color:var(--destructive)">${esc(e.message)} — run the SQL setup in Settings.</div>`}}
+function renderLookup(){ $('tab-lookup').innerHTML=`<div class="grid" style="gap:1.5rem">${pageHead('Lookup','Search the master. Need to add a new rule? Use Standardize.')}<div class="card"><div class="card-header"><div class="card-title">Search</div><p class="card-desc">Domestic ignores from/to. International uses sectors.</p></div><div class="card-content"><form id="lookup-form" class="grid grid-2"><div><label>Airline</label><select id="lookup-airline" class="select"></select></div><div><label>Fare Type</label><select id="lookup-fare" class="select"></select></div><div><label>From (optional)</label><input id="lookup-from" class="input" placeholder="e.g. DEL"></div><div><label>To (optional)</label><input id="lookup-to" class="input" placeholder="e.g. DXB"></div><div style="grid-column:1/-1"><button class="btn btn-primary" id="btn-lookup" data-label="Lookup">Lookup</button></div></form><div id="lookup-result" style="margin-top:1.5rem"></div></div></div></div>`;$('lookup-form').addEventListener('submit',handleLookup)}
+async function handleLookup(e){e.preventDefault();const airline=$('lookup-airline').value,fare=$('lookup-fare').value;if(!airline||!fare)return toast('Pick airline and fare type','error');setBusy('btn-lookup',true,'Searching');try{const {data,error}=await state.sb.from('FareRule_Mapping').select('rule_id,FareRule_Master:rule_id(standardized_output,is_active)').eq('airline',airline).eq('fare_type',fare).limit(5);if(error)throw error;const hit=(data||[]).find(r=>r.FareRule_Master?.is_active);$('lookup-result').innerHTML=hit?`<div style="display:flex;gap:.5rem;margin-bottom:.75rem"><span class="badge">FOUND</span><span class="badge badge-secondary">EXACT</span></div>${renderRule(hit.FareRule_Master.standardized_output)}`:`<div class="badge badge-amber">NOT FOUND</div><p class="muted" style="margin-top:.75rem">No mapping found — try Standardize.</p>`}catch(err){toast(err.message,'error')}finally{setBusy('btn-lookup',false)}}
+function renderStandardize(){ $('tab-standardize').innerHTML=`<div class="grid" style="gap:1.5rem">${pageHead('Standardize','SHA-256 dedupe → offline rule engine → AI fallback (deterministic, temperature 0).')}<div class="card"><div class="card-header"><div class="card-title">Raw rule input</div><p class="card-desc">Paste any supplier-formatted fare rule.</p></div><div class="card-content"><form id="std-form" class="grid grid-2"><div><label>Airline</label><select id="std-airline" class="select"></select></div><div><label>Sector Type</label><select id="std-sector" class="select"></select></div><div><label>Fare Type</label><select id="std-fare" class="select"></select></div><div class="grid grid-2"><div><label>From</label><input id="std-from" class="input" placeholder="DEL"></div><div><label>To</label><input id="std-to" class="input" placeholder="DXB"></div></div><div style="grid-column:1/-1"><label>Raw Fare Rule Text</label><textarea id="std-raw" class="textarea" rows="10" placeholder="Paste the raw airline fare rule here…"></textarea></div><div style="grid-column:1/-1"><button class="btn btn-primary" id="btn-standardize" data-label="Standardize">Standardize</button></div></form><div id="std-result" style="margin-top:1.5rem"></div></div></div></div>`;$('std-form').addEventListener('submit',handleStandardize);$('std-sector').addEventListener('change',()=>{const dis=$('std-sector').value==='Domestic';$('std-from').disabled=dis;$('std-to').disabled=dis})}
+async function handleStandardize(e){e.preventDefault();const args={airline:$('std-airline').value,sector_type:$('std-sector').value||'Domestic',fare_type:$('std-fare').value,from_sector:$('std-from').value,to_sector:$('std-to').value,raw_text:$('std-raw').value};if(!args.airline||!args.fare_type||!args.raw_text.trim())return toast('Airline, fare type, and raw text are required','error');setBusy('btn-standardize',true,'Processing');try{const r=await standardize(args);$('std-result').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem"><span class="badge">${r.status}</span><span class="badge badge-secondary">${r.confidence}</span><span class="badge badge-outline">${r.source}</span><code class="badge badge-outline">hash: ${r.hash_key.slice(0,16)}…</code></div>${renderRule(r.rule)}`;toast(r.status==='FOUND_CACHE'?'Cache hit — duplicate':'Standardized via offline rule engine','success');loadDashboard()}catch(err){toast(err.message,'error');$('std-result').innerHTML=`<div style="color:var(--destructive)">${esc(err.message)}</div>`}finally{setBusy('btn-standardize',false)}}
+function renderSupplier(){ $('tab-supplier').innerHTML=`<div class="grid" style="gap:1.5rem">${pageHead('Supplier Upload','Pick a supplier — airline suppliers auto-fill the airline; GDS/Aggregator allow manual selection.')}<div class="tabs-list"><button class="tab-btn supplier-tab active" data-supplier-tab="single">Single rule</button><button class="tab-btn supplier-tab" data-supplier-tab="bulk">Bulk upload</button></div><div id="supplier-single" class="card"><div class="card-header"><div class="card-title">Single rule</div><p class="card-desc">Pick supplier → airline auto-fills if applicable → paste rule.</p></div><div class="card-content"><form id="single-form" class="grid grid-2">${supplierFields('single')}<div style="grid-column:1/-1"><label>Raw Fare Rule Text</label><textarea id="single-raw" class="textarea" rows="8" placeholder="Paste raw rule…"></textarea></div><div style="grid-column:1/-1"><button class="btn btn-primary" id="btn-single" data-label="Process">Process</button></div></form><div id="single-history" style="margin-top:1.5rem"></div></div></div><div id="supplier-bulk" class="card hidden"><div class="card-header"><div class="card-title">Bulk upload</div><p class="card-desc">Paste multiple rules separated by a line containing only ---.</p></div><div class="card-content"><form id="bulk-form" class="grid grid-2">${supplierFields('bulk')}<div style="grid-column:1/-1"><label>Bulk rules</label><textarea id="bulk-raw" class="textarea" rows="14" placeholder="Rule 1 raw text…\n---\nRule 2 raw text…\n---\nRule 3…"></textarea></div><div style="grid-column:1/-1"><button class="btn btn-primary" id="btn-bulk" data-label="Process all">Process all</button></div></form><div id="bulk-results" style="margin-top:1.5rem"></div></div></div></div>`;document.querySelectorAll('.supplier-tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.supplier-tab').forEach(x=>x.classList.toggle('active',x===b));$('supplier-single').classList.toggle('hidden',b.dataset.supplierTab!=='single');$('supplier-bulk').classList.toggle('hidden',b.dataset.supplierTab!=='bulk')}));$('single-form').addEventListener('submit',handleSingle);$('bulk-form').addEventListener('submit',handleBulk);['single','bulk'].forEach(p=>{$(p+'-supplier').addEventListener('change',()=>supplierChanged(p));$(p+'-sector').addEventListener('change',()=>{const dis=$(p+'-sector').value==='Domestic';$(p+'-from').disabled=dis;$(p+'-to').disabled=dis})})}
+function supplierFields(p){return `<div style="grid-column:1/-1"><label>Supplier</label><select id="${p}-supplier" class="select"></select><p id="${p}-supplier-note" class="muted" style="font-size:.75rem;margin:.25rem 0 0"></p></div><div><label>Airline</label><select id="${p}-airline" class="select"></select></div><div><label>Sector Type</label><select id="${p}-sector" class="select"></select></div><div><label>Fare Type</label><select id="${p}-fare" class="select"></select></div><div class="grid grid-2"><div><label>From</label><input id="${p}-from" class="input" placeholder="DEL"></div><div><label>To</label><input id="${p}-to" class="input" placeholder="DXB"></div></div>`}
+function supplierChanged(p){const sup=state.refs.suppliers.find(s=>s.id===$(p+'-supplier').value);const locked=sup?.type==='Airline'&&sup.default_airline;if(locked)$(p+'-airline').value=sup.default_airline;$(p+'-airline').disabled=!!locked;$(p+'-supplier-note').innerHTML=sup?`Type: <span class="badge badge-outline">${esc(sup.type)}</span>${locked?' — airline auto-filled':''}`:''}
+async function handleSingle(e){e.preventDefault();const p='single';const args=getSupplierArgs(p,$(p+'-raw').value);if(!args)return;setBusy('btn-single',true,'Processing');try{const r=await standardize(args);$('single-history').insertAdjacentHTML('afterbegin',`<div style="display:flex;justify-content:space-between;gap:1rem;border:1px solid var(--border);border-radius:.5rem;padding:.75rem;margin-bottom:.5rem"><span class="muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(args.raw_text.slice(0,80))}…</span><span><span class="badge ${r.status==='FOUND_CACHE'?'badge-secondary':''}">${r.status==='FOUND_CACHE'?'Duplicate':'Processed'}</span> <code class="badge badge-outline">${r.hash_key.slice(0,10)}</code></span></div>`);$(p+'-raw').value='';toast('Processed','success')}catch(err){toast(err.message,'error')}finally{setBusy('btn-single',false)}}
+async function handleBulk(e){e.preventDefault();const raw=$('bulk-raw').value.trim();const base=getSupplierArgs('bulk',raw);if(!base)return;const rules=raw.split(/\n---+\n|\n---+|---+\n/).map(x=>x.trim()).filter(Boolean);if(!rules.length)return toast('Separate rules with a line containing only ---','error');setBusy('btn-bulk',true,'Processing');$('bulk-results').innerHTML='';let ok=0,dup=0,fail=0;for(let i=0;i<rules.length;i++){try{const r=await standardize({...base,raw_text:rules[i]});if(r.status==='FOUND_CACHE')dup++;else ok++;$('bulk-results').insertAdjacentHTML('beforeend',`<div style="padding:.4rem 0;color:#166534">✓ #${i+1} ${r.hash_key.slice(0,12)}… ${r.status}</div>`)}catch(err){fail++;$('bulk-results').insertAdjacentHTML('beforeend',`<div style="padding:.4rem 0;color:#991b1b">✗ #${i+1} ${esc(err.message)}</div>`)}}$('bulk-results').insertAdjacentHTML('beforeend',`<div style="font-weight:600;margin-top:.75rem">Summary: ${ok} new, ${dup} duplicates, ${fail} failed.</div>`);toast(`Processed ${rules.length} rules`,'success');setBusy('btn-bulk',false)}
+function getSupplierArgs(p,raw){const args={supplier_id:$(p+'-supplier').value,airline:$(p+'-airline').value,sector_type:$(p+'-sector').value||'Domestic',fare_type:$(p+'-fare').value,from_sector:$(p+'-from').value,to_sector:$(p+'-to').value,raw_text:raw};if(!args.supplier_id||!args.airline||!args.fare_type||!raw.trim()){toast('All fields required','error');return null}return args}
+function renderRules(){ $('tab-rules').innerHTML=`<div class="grid" style="gap:1.5rem">${pageHead('Master Rules','Edit standardized output, bump versions, deactivate.')}<input id="rules-search" class="input" style="max-width:28rem" placeholder="Search by airline, fare type, hash…"><div class="card"><div style="overflow:auto"><table class="table"><thead><tr><th>Airline</th><th>Sector</th><th>Fare Type</th><th>v</th><th>Active</th><th>Hash</th><th style="text-align:right">Actions</th></tr></thead><tbody id="rules-body"><tr><td colspan="7" class="muted" style="text-align:center;padding:2rem">Loading…</td></tr></tbody></table></div></div></div>`;$('rules-search').addEventListener('input',paintRules)}
+async function loadRules(){try{const {data,error}=await state.sb.from('FareRule_Master').select('*').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.rules=data||[];paintRules()}catch(e){$('rules-body').innerHTML=`<tr><td colspan="7" style="color:var(--destructive);text-align:center;padding:2rem">${esc(e.message)}</td></tr>`}}
+function paintRules(){const q=($('rules-search')?.value||'').toLowerCase();const rows=state.rules.filter(r=>!q||[r.airline,r.fare_type,r.sector_type,r.hash_key].some(x=>String(x||'').toLowerCase().includes(q)));$('rules-body').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.airline)}</b></td><td><span class="badge badge-outline">${esc(r.sector_type)}</span></td><td>${esc(r.fare_type)}</td><td>${r.version}</td><td>${r.is_active?'<span class="badge">active</span>':'<span class="badge badge-secondary">inactive</span>'}</td><td><code>${esc((r.hash_key||'').slice(0,12))}…</code></td><td style="text-align:right"><button class="btn btn-outline btn-sm" onclick="openRuleEdit('${r.id}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="toggleRule('${r.id}')">${r.is_active?'Deactivate':'Activate'}</button></td></tr>`).join(''):`<tr><td colspan="7" class="muted" style="text-align:center;padding:2rem">No rules</td></tr>`}
+window.toggleRule=async(id)=>{const r=state.rules.find(x=>x.id===id);const {error}=await state.sb.from('FareRule_Master').update({is_active:!r.is_active}).eq('id',id);if(error)return toast(error.message,'error');await loadRules()};window.openRuleEdit=(id)=>{const r=state.rules.find(x=>x.id===id);$('dialog-root').innerHTML=`<div class="dialog-backdrop"><div class="dialog"><div class="dialog-head"><h2 style="margin:0;font-size:1.125rem">Edit standardized output</h2><p class="muted" style="margin:.25rem 0 0">${esc(r.airline)} · ${esc(r.fare_type)} · v${r.version} → saving creates v${r.version+1}</p></div><div class="dialog-body grid grid-2"><div><label>JSON</label><textarea id="edit-json" class="textarea" style="font-family:monospace;font-size:.75rem" rows="16">${esc(JSON.stringify(r.standardized_output,null,2))}</textarea></div><div><label>Preview</label><div id="edit-preview">${renderRule(r.standardized_output)}</div></div></div><div class="dialog-foot"><button class="btn btn-ghost" onclick="closeDialog()">Cancel</button><button class="btn btn-primary" onclick="saveRuleVersion('${r.id}')">Save as new version</button></div></div></div>`;$('edit-json').addEventListener('input',()=>{try{$('edit-preview').innerHTML=renderRule(JSON.parse($('edit-json').value))}catch{$('edit-preview').innerHTML='<p style="color:var(--destructive)">Invalid JSON</p>'}})};window.closeDialog=()=>{$('dialog-root').innerHTML=''};window.saveRuleVersion=async(id)=>{const r=state.rules.find(x=>x.id===id);let parsed;try{parsed=JSON.parse($('edit-json').value)}catch{return toast('Invalid JSON','error')}await state.sb.from('FareRule_Master').update({is_active:false}).eq('id',id);const {error}=await state.sb.from('FareRule_Master').insert({...r,id:undefined,hash_key:r.hash_key+'#v'+(r.version+1),standardized_output:parsed,version:r.version+1,is_active:true,created_at:undefined,updated_at:undefined});if(error)return toast(error.message,'error');closeDialog();toast('Saved new version','success');loadRules()};
+function renderFallback(){ $('tab-fallback').innerHTML=`<div class="grid" style="gap:1.5rem">${pageHead('Fallback Log','Every time the AI was called for a cache miss.')}<div class="card"><div style="overflow:auto"><table class="table"><thead><tr><th>When</th><th>Stored?</th><th>Input (preview)</th><th style="text-align:right">View</th></tr></thead><tbody id="fallback-body"><tr><td colspan="4" class="muted" style="text-align:center;padding:2rem">Loading…</td></tr></tbody></table></div></div></div>`}
+async function loadFallback(){try{const {data,error}=await state.sb.from('FareRule_Fallback_Log').select('*').order('created_at',{ascending:false}).limit(200);if(error)throw error;state.fallback=data||[];$('fallback-body').innerHTML=state.fallback.length?state.fallback.map(r=>`<tr><td>${new Date(r.created_at).toLocaleString()}</td><td>${r.stored?'<span class="badge">stored</span>':'<span class="badge badge-danger">failed</span>'}</td><td class="muted">${esc((r.input_text||'').slice(0,120))}</td><td style="text-align:right"><button class="btn btn-outline btn-sm" onclick="openFallback('${r.id}')">Open</button></td></tr>`).join(''):`<tr><td colspan="4" class="muted" style="text-align:center;padding:2rem">No entries</td></tr>`}catch(e){$('fallback-body').innerHTML=`<tr><td colspan="4" style="color:var(--destructive);text-align:center;padding:2rem">${esc(e.message)}</td></tr>`}} window.openFallback=(id)=>{const r=state.fallback.find(x=>x.id===id);$('dialog-root').innerHTML=`<div class="dialog-backdrop"><div class="dialog"><div class="dialog-head"><h2 style="margin:0;font-size:1.125rem">Fallback entry</h2></div><div class="dialog-body"><label>Input</label><pre class="code">${esc(r.input_text||'')}</pre><label style="margin-top:1rem">API response</label><pre class="code">${esc(r.api_response||'')}</pre></div><div class="dialog-foot"><button class="btn btn-primary" onclick="closeDialog()">Close</button></div></div></div>`}
+function renderDropdowns(){ $('tab-dropdowns').innerHTML=`<div class="grid" style="gap:1.5rem">${pageHead('Dropdowns','All selects across FRAA pull from these tables.')}<div class="card"><div class="card-header"><div class="card-title" style="font-size:1rem">Suppliers</div></div><div class="card-content"><div class="grid" style="grid-template-columns:1fr 2fr 1fr 1fr auto;align-items:end"><div><label>Code</label><input id="new-supplier-code" class="input" placeholder="Code"></div><div><label>Name</label><input id="new-supplier-name" class="input" placeholder="Name"></div><div><label>Type</label><select id="new-supplier-type" class="select"><option>Airline</option><option>GDS</option><option>Aggregator</option></select></div><div><label>Default airline</label><select id="new-supplier-airline" class="select"></select></div><button class="btn btn-primary" id="add-supplier">Add</button></div><ul id="supplier-list" style="list-style:none;padding:0;margin:1rem 0 0;max-height:20rem;overflow:auto"></ul></div></div><div class="grid grid-3"><div class="card"><div class="card-header"><div class="card-title" style="font-size:1rem">Airlines</div></div><div class="card-content"><div style="display:flex;gap:.5rem"><input id="new-airline-code" class="input" placeholder="Code" style="width:5rem"><input id="new-airline-name" class="input" placeholder="Name"><button class="btn btn-primary btn-icon" id="add-airline">+</button></div><ul id="airline-list" style="list-style:none;padding:0;margin:1rem 0 0"></ul></div></div><div class="card"><div class="card-header"><div class="card-title" style="font-size:1rem">Fare Types</div></div><div class="card-content"><div style="display:flex;gap:.5rem"><input id="new-fare-name" class="input" placeholder="Name"><button class="btn btn-primary btn-icon" id="add-fare">+</button></div><ul id="fare-list" style="list-style:none;padding:0;margin:1rem 0 0"></ul></div></div><div class="card"><div class="card-header"><div class="card-title" style="font-size:1rem">Sector Types</div></div><div class="card-content"><div style="display:flex;gap:.5rem"><input id="new-sector-name" class="input" placeholder="Name"><button class="btn btn-primary btn-icon" id="add-sector">+</button></div><ul id="sector-list" style="list-style:none;padding:0;margin:1rem 0 0"></ul></div></div></div></div>`;wireDropdowns();paintDropdowns()}
+function li(txt,btn=''){return `<li style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--border);font-size:.875rem">${txt}${btn}</li>`}
+function paintDropdowns(){if(!$('supplier-list'))return;populateAllSelects();$('supplier-list').innerHTML=state.refs.suppliers.map(s=>li(`<span><code class="muted">${esc(s.code)}</code> <b>${esc(s.name)}</b> <span class="badge badge-outline">${esc(s.type)}</span> ${s.default_airline?`<span class="muted">→ ${esc(s.default_airline)}</span>`:''} ${!s.is_active?'<span class="badge badge-secondary">inactive</span>':''}</span>`,`<span><button class="btn btn-ghost btn-sm" onclick="toggleSupplier('${s.id}')">${s.is_active?'Disable':'Enable'}</button><button class="btn btn-ghost btn-sm" onclick="deleteRow('Ref_Supplier','${s.id}')">Delete</button></span>`)).join('')||'<li class="muted">Empty</li>';$('airline-list').innerHTML=state.refs.airlines.map(a=>li(`<span><code class="muted">${esc(a.code)}</code> ${esc(a.name)}</span>`,`<button class="btn btn-ghost btn-sm" onclick="deleteRow('Ref_Airline','${a.id}')">Delete</button>`)).join('')||'<li class="muted">Empty</li>';$('fare-list').innerHTML=state.refs.fareTypes.map(f=>li(esc(f.name),`<button class="btn btn-ghost btn-sm" onclick="deleteRow('Ref_Fare_Type','${f.id}')">Delete</button>`)).join('')||'<li class="muted">Empty</li>';$('sector-list').innerHTML=state.refs.sectorTypes.map(s=>li(esc(s.name),`<button class="btn btn-ghost btn-sm" onclick="deleteRow('Ref_Sector_Type','${s.id}')">Delete</button>`)).join('')||'<li class="muted">Empty</li>'}
+function wireDropdowns(){setTimeout(()=>{$('add-supplier').onclick=async()=>{const row={code:$('new-supplier-code').value.trim().toUpperCase(),name:$('new-supplier-name').value.trim(),type:$('new-supplier-type').value,default_airline:$('new-supplier-type').value==='Airline'?$('new-supplier-airline').value||null:null,is_active:true};if(!row.code||!row.name)return toast('Code + name required','error');const {error}=await state.sb.from('Ref_Supplier').insert(row);if(error)return toast(error.message,'error');await loadRefs();paintDropdowns()};$('add-airline').onclick=()=>addRef('Ref_Airline',{code:$('new-airline-code').value.trim().toUpperCase(),name:$('new-airline-name').value.trim()});$('add-fare').onclick=()=>addRef('Ref_Fare_Type',{name:$('new-fare-name').value.trim()});$('add-sector').onclick=()=>addRef('Ref_Sector_Type',{name:$('new-sector-name').value.trim()})},0)} async function addRef(table,row){if(Object.values(row).some(v=>!v))return toast('Value required','error');const {error}=await state.sb.from(table).insert(row);if(error)return toast(error.message,'error');await loadRefs();paintDropdowns()} window.deleteRow=async(table,id)=>{const {error}=await state.sb.from(table).delete().eq('id',id);if(error)return toast(error.message,'error');await loadRefs();paintDropdowns()};window.toggleSupplier=async(id)=>{const s=state.refs.suppliers.find(x=>x.id===id);const {error}=await state.sb.from('Ref_Supplier').update({is_active:!s.is_active}).eq('id',id);if(error)return toast(error.message,'error');await loadRefs();paintDropdowns()};
+function renderSettings(){ $('tab-settings').innerHTML=`<div class="grid" style="gap:1.5rem">${pageHead('Settings','Configuration overview and SQL setup.')}<div class="card"><div class="card-header"><div class="card-title">Backend</div><p class="card-desc">External Supabase project</p></div><div class="card-content grid" style="gap:.75rem"><div class="grid grid-2"><div><label>Supabase URL</label><input id="cfg-url" class="input"></div><div><label>Anon key</label><input id="cfg-key" class="input"></div></div><div style="display:flex;gap:.5rem;flex-wrap:wrap"><button class="btn btn-primary" id="save-cfg">Save & Reload</button><button class="btn btn-outline" id="check-setup">Check Supabase Setup</button><button class="btn btn-outline" id="reload-refs">Reload Reference Data</button></div><div id="setup-result" class="code" style="display:none;white-space:pre-wrap"></div><p class="muted" style="font-size:.75rem">Run the SQL below in Supabase SQL Editor before using the dashboard.</p></div></div><div class="card"><div class="card-header"><div class="card-title">AI provider</div><p class="card-desc">OpenAI gpt-4o-mini · temperature=0 · seed=42</p></div><div class="card-content"><input id="cfg-openai" class="input" placeholder="Optional OpenAI API key"><button class="btn btn-primary" id="save-openai" style="margin-top:.75rem">Save Key</button></div></div><div class="card"><div class="card-header"><div class="card-title">Public API</div><p class="card-desc">Read-only lookup endpoint structure for app integration.</p></div><div class="card-content"><code class="code">GET /api/fare-rule?airline=Air%20India&fare_type=Saver</code><div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem"><span class="badge badge-outline">airline</span><span class="badge badge-outline">fare_type</span><span class="badge badge-outline">from</span><span class="badge badge-outline">to</span></div></div></div><div class="card"><div class="card-header"><div class="card-title">Supabase SQL Schema</div><p class="card-desc">Includes tables, relationships, dropdown data, indexes, and RLS policies.</p></div><div class="card-content"><button class="btn btn-outline btn-sm" id="copy-sql" style="margin-bottom:.75rem">Copy SQL</button><pre id="sql-schema" class="code dark-code"></pre></div></div></div>`;setTimeout(()=>{const c=getCfg();$('cfg-url').value=c.url;$('cfg-key').value=c.key;$('cfg-openai').value=localStorage.getItem('fraa_openai_key')||'';$('sql-schema').textContent=SQL_SCHEMA;$('save-cfg').onclick=()=>{localStorage.setItem('fraa_supabase_url',$('cfg-url').value.trim());localStorage.setItem('fraa_supabase_key',$('cfg-key').value.trim());toast('Saved. Reloading…','success');setTimeout(()=>location.reload(),600)};$('save-openai').onclick=()=>{localStorage.setItem('fraa_openai_key',$('cfg-openai').value.trim());toast('OpenAI key saved','success')};$('reload-refs').onclick=async()=>{const r=await loadRefs();if(r?.ok){paintDropdowns();toast('Reference data reloaded','success')}};$('check-setup').onclick=checkSetup;$('copy-sql').onclick=async()=>{await navigator.clipboard.writeText(SQL_SCHEMA);toast('SQL copied','success')}},0)}
+async function checkSetup(){const out=$('setup-result');out.style.display='block';out.textContent='Checking Supabase setup…';const lines=[];try{const c=getCfg();lines.push(`URL: ${c.url?c.url:'missing'}`);lines.push(`Anon key: ${c.key?'present':'missing'}`);const {data:{session},error:authErr}=await state.sb.auth.getSession();lines.push(`Auth session: ${authErr?'error - '+authErr.message:(session?.user?'signed in as '+session.user.email:'not signed in')}`);for(const table of [...REF_TABLES.map(x=>x[0]),...APP_TABLES]){const {data,error,count}=await state.sb.from(table).select('id',{count:'exact'}).limit(1);if(error){lines.push(`✗ ${table}: ${tableError(table,error)}`)}else{const isRef=REF_TABLES.some(x=>x[0]===table);lines.push(`${isRef&&count===0?'!':'✓'} ${table}: readable, rows=${count??(data?.length||0)}${isRef&&count===0?' (starter rows missing)':''}`)}}out.textContent=lines.join('\n');toast('Setup check complete','success')}catch(e){out.textContent=lines.concat('Check failed: '+(e.message||e)).join('\n');toast('Setup check failed','error')}}
+document.addEventListener('DOMContentLoaded',boot);
 </script>
 </body>
 </html>
